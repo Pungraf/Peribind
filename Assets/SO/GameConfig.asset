@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e2814d053b834a48947a5d71855eb1d, type: 3}
+  m_Name: GameConfig
+  m_EditorClassIdentifier: Assembly-CSharp::Peribind.Unity.ScriptableObjects.GameConfigSO
+  playerOnePieceSet: {fileID: 11400000, guid: f5b0f55ad029c0b439e2fa06e2ffa7b8, type: 2}
+  playerTwoPieceSet: {fileID: 11400000, guid: 7d7025539db844343a0fa5c2d7895c3f, type: 2}
+  cathedralPiece: {fileID: 11400000, guid: 62d013926a9f4a64fb5cbade883c7a53, type: 2}
+  playerOneColor: {r: 0.5754717, g: 0.34240955, b: 0.14929691, a: 1}
+  playerTwoColor: {r: 0.7830189, g: 0.74797016, b: 0.6685208, a: 1}
+  cathedralColor: {r: 0.7924528, g: 0.6522576, b: 0.20558919, a: 1}

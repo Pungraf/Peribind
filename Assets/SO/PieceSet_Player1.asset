@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 05261ffcf1ab9944f971d45aca0950e7, type: 3}
+  m_Name: PieceSet_Player1
+  m_EditorClassIdentifier: Assembly-CSharp::Peribind.Unity.ScriptableObjects.PieceSetSO
+  entries:
+  - piece: {fileID: 11400000, guid: a3f8dcb8a81c6bf4ea5d820cf277e8d6, type: 2}
+    count: 2
+  - piece: {fileID: 11400000, guid: 25a3ed6d3dc8fbe4c84ec30b46c99fa5, type: 2}
+    count: 2
+  - piece: {fileID: 11400000, guid: bd5e0c755d3bb274eb6e5befe3936807, type: 2}
+    count: 2
+  - piece: {fileID: 11400000, guid: 5edd94977702b55409ada4800851c74a, type: 2}
+    count: 1
+  - piece: {fileID: 11400000, guid: 9a09a4f069b791b47b514a9c6af1a51a, type: 2}
+    count: 1
+  - piece: {fileID: 11400000, guid: 53872139399928a49b5a16c728747bb7, type: 2}
+    count: 1
+  - piece: {fileID: 11400000, guid: 33b4a3c3897f4494e9929b1d6824344b, type: 2}
+    count: 1
+  - piece: {fileID: 11400000, guid: 553ca1f53d72c2145a7b4aae291ccc5a, type: 2}
+    count: 1
+  - piece: {fileID: 11400000, guid: 95e4dcafcba167b47ba08269f8c856c2, type: 2}
+    count: 1
+  - piece: {fileID: 11400000, guid: e3e8ab22dfe780e4f81a1c85ee56c084, type: 2}
+    count: 1
+  - piece: {fileID: 11400000, guid: e2948151702219040a1551b092c9231b, type: 2}
+    count: 1
