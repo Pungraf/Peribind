@@ -15,6 +15,7 @@ MonoBehaviour:
   id: 5_Xshape
   displayName: 5_Xshape
   color: {r: 1, g: 1, b: 1, a: 1}
+  icon: {fileID: 21300000, guid: 0cf76cfb8db3ec641992cad044ef6bbd, type: 3}
   cells:
   - {x: 0, y: 0}
   - {x: -1, y: 0}

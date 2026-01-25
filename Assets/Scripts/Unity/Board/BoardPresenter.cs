@@ -15,6 +15,7 @@ namespace Peribind.Unity.Board
         [SerializeField] private BoardRaycaster boardRaycaster;
         [SerializeField] private PlacementPreview placementPreview;
         [SerializeField] private BoardPlacementView placementView;
+        [SerializeField] private TerritoryOverlayView territoryOverlayView;
         [SerializeField] private PieceSelection pieceSelection;
         [SerializeField] private GameConfigSO gameConfig;
         [SerializeField] private InputReader inputReader;
@@ -119,8 +120,7 @@ namespace Peribind.Unity.Board
                 return;
             }
 
-            var placement = new Placement(_currentPieceDefinition, cell, _rotation, _session.Phase == GamePhase.CathedralPlacement ? GameSession.NeutralPlayerId : _session.CurrentPlayerId);
-            var result = PlacementValidator.Validate(_session.Board, placement);
+            var result = _session.ValidatePlacement(_currentPieceDefinition, pieceAsset.Id, cell, _rotation, out _, out _);
             if (placementPreview != null)
             {
                 var previewColor = ResolvePreviewColor();
@@ -134,16 +134,15 @@ namespace Peribind.Unity.Board
                     pieceAsset.Id,
                     cell,
                     _rotation,
-                    out var command,
-                    out var placementResult,
                     out _,
-                    out var placedPlayerId,
-                    out var isCathedral))
+                    out _,
+                    out _,
+                    out _,
+                    out _))
                 {
                     if (placementView != null)
                     {
-                        var color = ResolvePlacementColor(placedPlayerId, isCathedral);
-                        placementView.AddPlacement(gridMapper, placementResult.AbsoluteCells, color);
+                        RebuildPlacements();
                     }
 
                     _placementRevision++;
@@ -151,6 +150,8 @@ namespace Peribind.Unity.Board
                     {
                         pieceSelection.ClearSelection();
                     }
+
+                    UpdateTerritories();
                 }
             }
         }
@@ -313,6 +314,38 @@ namespace Peribind.Unity.Board
             }
 
             return _session.CurrentPlayerId == 0 ? gameConfig.PlayerOneColor : gameConfig.PlayerTwoColor;
+        }
+
+        private void UpdateTerritories()
+        {
+            if (territoryOverlayView == null || _session == null || gridMapper == null || gameConfig == null)
+            {
+                return;
+            }
+
+            var territories = _session.GetClaimedTerritories();
+            var colors = new Dictionary<int, Color>
+            {
+                { 0, new Color(gameConfig.PlayerOneColor.r, gameConfig.PlayerOneColor.g, gameConfig.PlayerOneColor.b, 0.2f) },
+                { 1, new Color(gameConfig.PlayerTwoColor.r, gameConfig.PlayerTwoColor.g, gameConfig.PlayerTwoColor.b, 0.2f) }
+            };
+
+            territoryOverlayView.SetTerritories(gridMapper, territories, colors);
+        }
+
+        private void RebuildPlacements()
+        {
+            if (placementView == null || _session == null || gridMapper == null)
+            {
+                return;
+            }
+
+            placementView.ClearAll();
+            foreach (var placedPiece in _session.PlacedPieces)
+            {
+                var color = ResolvePlacementColor(placedPiece.PlayerId, placedPiece.IsCathedral);
+                placementView.AddPlacement(gridMapper, placedPiece.Cells, color);
+            }
         }
 
         public bool HasPieceForCurrentPlayer(string pieceId)

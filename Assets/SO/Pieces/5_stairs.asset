@@ -15,6 +15,7 @@ MonoBehaviour:
   id: 5_stairs
   displayName: 5_stairs
   color: {r: 1, g: 1, b: 1, a: 1}
+  icon: {fileID: 21300000, guid: 316f6bf616a05e540a5203015f4a9061, type: 3}
   cells:
   - {x: 0, y: 0}
   - {x: -1, y: 0}

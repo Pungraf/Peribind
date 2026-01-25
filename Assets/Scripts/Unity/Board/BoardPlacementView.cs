@@ -70,6 +70,19 @@ namespace Peribind.Unity.Board
             }
         }
 
+        public void ClearAll()
+        {
+            foreach (var instance in _spawned)
+            {
+                if (instance != null)
+                {
+                    Destroy(instance);
+                }
+            }
+
+            _spawned.Clear();
+        }
+
         private static int GetColorPropertyId(Renderer renderer)
         {
             var material = renderer.sharedMaterial;

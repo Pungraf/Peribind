@@ -15,6 +15,7 @@ MonoBehaviour:
   id: 3_corner
   displayName: 3_corner
   color: {r: 1, g: 1, b: 1, a: 1}
+  icon: {fileID: 21300000, guid: 92b5d3fe182c8fe49bd0abcd8a41977b, type: 3}
   cells:
   - {x: 0, y: 0}
   - {x: 1, y: 0}

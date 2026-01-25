@@ -6,19 +6,19 @@ namespace Peribind.Application.Commands
     public class PlacePieceCommand : IGameCommand
     {
         private readonly IReadOnlyList<Cell> _cells;
-        private readonly int _playerId;
+        private readonly CellOccupant _occupant;
 
-        public PlacePieceCommand(IReadOnlyList<Cell> cells, int playerId)
+        public PlacePieceCommand(IReadOnlyList<Cell> cells, CellOccupant occupant)
         {
             _cells = cells;
-            _playerId = playerId;
+            _occupant = occupant;
         }
 
         public void Apply(BoardState board)
         {
             foreach (var cell in _cells)
             {
-                board.SetOccupant(cell, _playerId);
+                board.SetOccupant(cell, _occupant);
             }
         }
 

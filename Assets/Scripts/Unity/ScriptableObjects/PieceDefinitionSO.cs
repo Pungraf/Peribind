@@ -12,11 +12,13 @@ namespace Peribind.Unity.ScriptableObjects
         [SerializeField] private string id;
         [SerializeField] private string displayName;
         [SerializeField] private Color color = Color.white;
+        [SerializeField] private Sprite icon;
         [SerializeField] private List<Vector2Int> cells = new List<Vector2Int>();
 
         public string Id => string.IsNullOrWhiteSpace(id) ? name : id;
         public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? name : displayName;
         public Color Color => color;
+        public Sprite Icon => icon;
         public IReadOnlyList<Vector2Int> Cells => cells;
 
         public PieceDefinition ToDomainDefinition()

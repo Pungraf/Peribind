@@ -4,14 +4,14 @@ namespace Peribind.Domain.Board
 {
     public class BoardState
     {
-        private readonly int?[,] _occupancy;
+        private readonly CellOccupant?[,] _occupancy;
 
         public BoardSize Size { get; }
 
         public BoardState(BoardSize size)
         {
             Size = size;
-            _occupancy = new int?[size.Width, size.Height];
+            _occupancy = new CellOccupant?[size.Width, size.Height];
         }
 
         public bool IsOccupied(Cell cell)
@@ -19,14 +19,19 @@ namespace Peribind.Domain.Board
             return _occupancy[cell.X, cell.Y].HasValue;
         }
 
-        public int? GetOccupant(Cell cell)
+        public CellOccupant? GetOccupant(Cell cell)
         {
             return _occupancy[cell.X, cell.Y];
         }
 
-        public void SetOccupant(Cell cell, int playerId)
+        public int? GetOccupantPlayerId(Cell cell)
         {
-            _occupancy[cell.X, cell.Y] = playerId;
+            return _occupancy[cell.X, cell.Y]?.PlayerId;
+        }
+
+        public void SetOccupant(Cell cell, CellOccupant occupant)
+        {
+            _occupancy[cell.X, cell.Y] = occupant;
         }
 
         public void ClearOccupant(Cell cell)

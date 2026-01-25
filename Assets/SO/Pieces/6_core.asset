@@ -15,6 +15,7 @@ MonoBehaviour:
   id: 6_core
   displayName: 6_core
   color: {r: 1, g: 1, b: 1, a: 1}
+  icon: {fileID: 21300000, guid: c5fe6e5a9959a1645bbb6ebb39bbcf24, type: 3}
   cells:
   - {x: 0, y: 0}
   - {x: -1, y: 0}

@@ -79,6 +79,7 @@ namespace Peribind.Unity.UI
 
             var canSelect = boardPresenter.IsPlayerTurn;
             var playerColor = boardPresenter.CurrentPlayerColor;
+            var selectedPiece = pieceSelection.Current;
 
             for (var i = 0; i < catalog.Pieces.Count && i < _buttons.Count; i++)
             {
@@ -107,6 +108,12 @@ namespace Peribind.Unity.UI
                     button.Label.text = $"{piece.DisplayName} ({remaining})";
                 }
 
+                if (button.IconImage != null)
+                {
+                    button.IconImage.sprite = piece.Icon;
+                    button.IconImage.enabled = piece.Icon != null;
+                }
+
                 if (button.ColorSwatch != null)
                 {
                     button.ColorSwatch.color = hasPiece ? playerColor : disabledColor;
@@ -115,6 +122,11 @@ namespace Peribind.Unity.UI
                 if (button.Button != null)
                 {
                     button.Button.interactable = canSelect && hasPiece;
+                }
+
+                if (button.SelectionOutline != null)
+                {
+                    button.SelectionOutline.enabled = piece == selectedPiece;
                 }
             }
         }

@@ -15,6 +15,7 @@ MonoBehaviour:
   id: 4_Zshape
   displayName: 4_Zshape
   color: {r: 1, g: 1, b: 1, a: 1}
+  icon: {fileID: 21300000, guid: 9454560f9c967b04aa11c9e075917193, type: 3}
   cells:
   - {x: 0, y: 0}
   - {x: 1, y: 0}

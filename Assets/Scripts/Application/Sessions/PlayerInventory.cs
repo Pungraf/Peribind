@@ -31,5 +31,16 @@ namespace Peribind.Application.Sessions
         {
             return _counts.TryGetValue(pieceId, out var count) ? count : 0;
         }
+
+        public void ReturnPiece(string pieceId)
+        {
+            if (_counts.ContainsKey(pieceId))
+            {
+                _counts[pieceId] += 1;
+                return;
+            }
+
+            _counts[pieceId] = 1;
+        }
     }
 }

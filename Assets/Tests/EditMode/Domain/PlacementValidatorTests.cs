@@ -23,7 +23,7 @@ namespace Peribind.Tests.EditMode.Domain
         public void Validate_ReturnsOverlap_WhenAnyCellOccupied()
         {
             var board = new BoardState(new BoardSize(10, 10));
-            board.SetOccupant(new Cell(4, 4), 0);
+            board.SetOccupant(new Cell(4, 4), new CellOccupant(0, 1, "Test"));
             var piece = new PieceDefinition("Test", new[] { new Cell(0, 0), new Cell(1, 0) });
             var placement = new Placement(piece, new Cell(4, 4), Rotation.Deg0, 0);
 

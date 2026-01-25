@@ -15,5 +15,6 @@ MonoBehaviour:
   id: 1_single
   displayName: 1_single
   color: {r: 1, g: 1, b: 1, a: 1}
+  icon: {fileID: 21300000, guid: b537f16c361938c4a8af90b034aeaa48, type: 3}
   cells:
   - {x: 0, y: 0}
