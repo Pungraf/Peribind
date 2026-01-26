@@ -20,7 +20,12 @@ namespace Peribind.Tests.EditMode.Application
                 new PlayerInventory(new Dictionary<string, int> { { "P1", 1 } })
             };
 
-            var session = new GameSession(size, cathedral.Id, inventories);
+            var pieceSizes = new Dictionary<string, int>
+            {
+                { cathedral.Id, 1 },
+                { piece.Id, 1 }
+            };
+            var session = new GameSession(size, cathedral.Id, inventories, pieceSizes);
 
             var success = session.TryPlacePiece(
                 piece,
@@ -49,7 +54,12 @@ namespace Peribind.Tests.EditMode.Application
                 new PlayerInventory(new Dictionary<string, int> { { "P1", 1 } })
             };
 
-            var session = new GameSession(size, cathedral.Id, inventories);
+            var pieceSizes = new Dictionary<string, int>
+            {
+                { cathedral.Id, 1 },
+                { piece.Id, 1 }
+            };
+            var session = new GameSession(size, cathedral.Id, inventories, pieceSizes);
 
             session.TryPlacePiece(
                 cathedral,

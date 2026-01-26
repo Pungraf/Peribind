@@ -1,0 +1,139 @@
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+using Peribind.Unity.Board;
+using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
+
+namespace Peribind.Unity.UI
+{
+    public class GameHudView : MonoBehaviour
+    {
+        [SerializeField] private BoardPresenter boardPresenter;
+        [SerializeField] private TMP_Text playerOneScoreText;
+        [SerializeField] private TMP_Text playerTwoScoreText;
+        [SerializeField] private TMP_Text roundText;
+        [SerializeField] private TMP_Text turnText;
+        [SerializeField] private TMP_Text infoText;
+        [SerializeField] private Button finishRoundButton;
+        [SerializeField] private GameObject gameOverPanel;
+        [SerializeField] private string starterSceneName = "StarterScene";
+        [SerializeField] private string gameSceneName = "GameScene";
+        [SerializeField] private TMP_Text playAgainButtonText;
+        [SerializeField] private string playAgainLabel = "Play Again";
+        [SerializeField] private string restartLabel = "Restart";
+
+        private bool _menuOpen;
+
+        private void Awake()
+        {
+            if (finishRoundButton != null)
+            {
+                finishRoundButton.onClick.AddListener(OnFinishRoundClicked);
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (finishRoundButton != null)
+            {
+                finishRoundButton.onClick.RemoveListener(OnFinishRoundClicked);
+            }
+        }
+
+        private void Update()
+        {
+            if (boardPresenter == null)
+            {
+                return;
+            }
+
+            if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame && !boardPresenter.IsGameOver)
+            {
+                _menuOpen = !_menuOpen;
+            }
+
+            if (playerOneScoreText != null)
+            {
+                playerOneScoreText.text = $"P1: {boardPresenter.GetTotalScore(0)}";
+            }
+
+            if (playerTwoScoreText != null)
+            {
+                playerTwoScoreText.text = $"P2: {boardPresenter.GetTotalScore(1)}";
+            }
+
+            if (roundText != null)
+            {
+                roundText.text = $"Round {boardPresenter.CurrentRound}/2";
+            }
+
+            if (turnText != null)
+            {
+                if (boardPresenter.IsGameOver)
+                {
+                    turnText.text = "Game Over";
+                }
+                else
+                {
+                    var current = boardPresenter.CurrentPlayerId + 1;
+                    var finished = boardPresenter.HasFinishedRound(boardPresenter.CurrentPlayerId) ? " (Finished)" : string.Empty;
+                    turnText.text = $"Turn: P{current}{finished}";
+                }
+            }
+
+            if (gameOverPanel != null)
+            {
+                var shouldShow = boardPresenter.IsGameOver || _menuOpen;
+                gameOverPanel.SetActive(shouldShow);
+            }
+
+            if (playAgainButtonText != null)
+            {
+                playAgainButtonText.text = boardPresenter.IsGameOver ? playAgainLabel : restartLabel;
+            }
+        }
+
+        public void ShowInfo(string message)
+        {
+            if (infoText == null)
+            {
+                return;
+            }
+
+            infoText.text = message;
+            infoText.gameObject.SetActive(true);
+        }
+
+        public void HideInfo()
+        {
+            if (infoText == null)
+            {
+                return;
+            }
+
+            infoText.text = string.Empty;
+            infoText.gameObject.SetActive(false);
+        }
+
+        private void OnFinishRoundClicked()
+        {
+            if (boardPresenter == null)
+            {
+                return;
+            }
+
+            boardPresenter.FinishRoundForCurrentPlayer();
+        }
+
+        public void PlayAgain()
+        {
+            SceneManager.LoadScene(gameSceneName);
+        }
+
+        public void ExitToStarter()
+        {
+            SceneManager.LoadScene(starterSceneName);
+        }
+    }
+}

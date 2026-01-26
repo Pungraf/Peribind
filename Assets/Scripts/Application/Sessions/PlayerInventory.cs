@@ -32,6 +32,24 @@ namespace Peribind.Application.Sessions
             return _counts.TryGetValue(pieceId, out var count) ? count : 0;
         }
 
+        public bool HasAnyPieces()
+        {
+            foreach (var pair in _counts)
+            {
+                if (pair.Value > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public IEnumerable<KeyValuePair<string, int>> GetCounts()
+        {
+            return _counts;
+        }
+
         public void ReturnPiece(string pieceId)
         {
             if (_counts.ContainsKey(pieceId))

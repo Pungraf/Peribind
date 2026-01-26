@@ -9,7 +9,8 @@ namespace Peribind.Domain.Board
         Overlap = 2,
         InvalidPieceForPhase = 3,
         NoRemainingPieces = 4,
-        InOpponentTerritory = 5
+        InOpponentTerritory = 5,
+        FinishedRound = 6
     }
 
     public readonly struct PlacementResult

@@ -27,6 +27,7 @@ namespace Peribind.Unity.Board
         private bool _placementPaused;
         private int _placementRevision;
         private GamePhase _lastPhase;
+        private int _lastRoundRevision;
 
         public int PlacementRevision => _placementRevision;
         public int CurrentPlayerId => _session != null ? _session.CurrentPlayerId : 0;
@@ -45,7 +46,8 @@ namespace Peribind.Unity.Board
             }
 
             var inventories = BuildInventories(gameConfig.PlayerOnePieceSet, gameConfig.PlayerTwoPieceSet);
-            _session = new GameSession(new BoardSize(gridMapper.Width, gridMapper.Height), gameConfig.CathedralPiece.Id, inventories);
+            var pieceSizes = BuildPieceSizes(gameConfig.PlayerOnePieceSet, gameConfig.PlayerTwoPieceSet, gameConfig.CathedralPiece);
+            _session = new GameSession(new BoardSize(gridMapper.Width, gridMapper.Height), gameConfig.CathedralPiece.Id, inventories, pieceSizes);
         }
 
         private void Update()
@@ -53,6 +55,26 @@ namespace Peribind.Unity.Board
             if (_session == null || inputReader == null || pieceSelection == null)
             {
                 return;
+            }
+
+            if (_lastRoundRevision != _session.RoundRevision)
+            {
+                _lastRoundRevision = _session.RoundRevision;
+                _rotation = Rotation.Deg0;
+                pieceSelection.ClearSelection();
+                if (placementPreview != null)
+                {
+                    placementPreview.Hide();
+                }
+                if (placementView != null)
+                {
+                    placementView.ClearAll();
+                }
+                if (territoryOverlayView != null)
+                {
+                    territoryOverlayView.ClearAll();
+                }
+                _placementRevision++;
             }
 
             if (_lastPhase != _session.Phase)
@@ -286,6 +308,34 @@ namespace Peribind.Unity.Board
             return counts;
         }
 
+        private static Dictionary<string, int> BuildPieceSizes(PieceSetSO playerOneSet, PieceSetSO playerTwoSet, PieceDefinitionSO cathedral)
+        {
+            var sizes = new Dictionary<string, int>();
+            AddPieceSizes(sizes, playerOneSet);
+            AddPieceSizes(sizes, playerTwoSet);
+            if (cathedral != null && !sizes.ContainsKey(cathedral.Id))
+            {
+                sizes[cathedral.Id] = cathedral.Cells.Count;
+            }
+            return sizes;
+        }
+
+        private static void AddPieceSizes(Dictionary<string, int> sizes, PieceSetSO set)
+        {
+            foreach (var entry in set.Entries)
+            {
+                if (entry.piece == null)
+                {
+                    continue;
+                }
+
+                if (!sizes.ContainsKey(entry.piece.Id))
+                {
+                    sizes[entry.piece.Id] = entry.piece.Cells.Count;
+                }
+            }
+        }
+
         private Color ResolvePlacementColor(int placedPlayerId, bool isCathedral)
         {
             if (gameConfig == null)
@@ -366,6 +416,51 @@ namespace Peribind.Unity.Board
             }
 
             return _session.GetRemainingCount(_session.CurrentPlayerId, pieceId);
+        }
+
+        public int CurrentRound => _session != null ? _session.CurrentRound : 1;
+        public bool IsGameOver => _session != null && _session.IsGameOver;
+
+        public int GetTotalScore(int playerId)
+        {
+            if (_session == null || _session.TotalScores == null)
+            {
+                return 0;
+            }
+
+            if (playerId < 0 || playerId >= _session.TotalScores.Length)
+            {
+                return 0;
+            }
+
+            return _session.TotalScores[playerId];
+        }
+
+        public bool HasFinishedRound(int playerId)
+        {
+            if (_session == null || _session.FinishedThisRound == null)
+            {
+                return false;
+            }
+
+            if (playerId < 0 || playerId >= _session.FinishedThisRound.Length)
+            {
+                return false;
+            }
+
+            return _session.FinishedThisRound[playerId];
+        }
+
+        public void FinishRoundForCurrentPlayer()
+        {
+            if (_session == null)
+            {
+                return;
+            }
+
+            _session.FinishRoundForCurrentPlayer();
+            _placementRevision++;
+            UpdateTerritories();
         }
     }
 }

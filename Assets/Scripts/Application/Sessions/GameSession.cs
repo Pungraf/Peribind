@@ -11,20 +11,34 @@ namespace Peribind.Application.Sessions
 
         private readonly PlayerInventory[] _inventories;
         private readonly string _cathedralPieceId;
+        private readonly Dictionary<string, int> _pieceSizes;
+        private readonly Dictionary<string, int>[] _initialCounts;
         private readonly Dictionary<int, PlacedPiece> _placedPieces = new Dictionary<int, PlacedPiece>();
         private readonly HashSet<Cell>[] _claimedTerritories;
         private int _nextPieceInstanceId;
+        private readonly bool[] _finishedThisRound;
 
         public BoardState Board { get; }
         public int CurrentPlayerId { get; private set; }
         public GamePhase Phase { get; private set; }
         public IReadOnlyCollection<PlacedPiece> PlacedPieces => _placedPieces.Values;
+        public int CurrentRound { get; private set; }
+        public int[] TotalScores { get; }
+        public bool IsGameOver { get; private set; }
+        public int RoundRevision { get; private set; }
+        public bool[] FinishedThisRound => _finishedThisRound;
 
-        public GameSession(BoardSize size, string cathedralPieceId, PlayerInventory[] inventories, int startingPlayerId = 0)
+        public GameSession(
+            BoardSize size,
+            string cathedralPieceId,
+            PlayerInventory[] inventories,
+            Dictionary<string, int> pieceSizes,
+            int startingPlayerId = 0)
         {
             Board = new BoardState(size);
             _cathedralPieceId = cathedralPieceId;
             _inventories = inventories;
+            _pieceSizes = pieceSizes ?? new Dictionary<string, int>();
             CurrentPlayerId = startingPlayerId;
             Phase = GamePhase.CathedralPlacement;
             _claimedTerritories = new[]
@@ -32,6 +46,16 @@ namespace Peribind.Application.Sessions
                 new HashSet<Cell>(),
                 new HashSet<Cell>()
             };
+            _finishedThisRound = new bool[_inventories.Length];
+            TotalScores = new int[_inventories.Length];
+            CurrentRound = 1;
+            RoundRevision = 0;
+
+            _initialCounts = new Dictionary<string, int>[_inventories.Length];
+            for (var i = 0; i < _inventories.Length; i++)
+            {
+                _initialCounts[i] = CopyCounts(_inventories[i]);
+            }
         }
 
         public bool HasPieceForCurrentPlayer(string pieceId)
@@ -84,21 +108,44 @@ namespace Peribind.Application.Sessions
             if (isCathedral)
             {
                 Phase = GamePhase.PlayerTurn;
+                AdvanceTurn();
             }
             else
             {
                 _inventories[CurrentPlayerId].TryConsume(pieceId);
                 RecomputeTerritories(placedPlayerId);
-                EndTurn();
+                if (!_inventories[CurrentPlayerId].HasAnyPieces())
+                {
+                    _finishedThisRound[CurrentPlayerId] = true;
+                }
+                AdvanceTurn();
             }
 
             failureReason = PlacementFailureReason.None;
             return true;
         }
 
-        private void EndTurn()
+        private void AdvanceTurn()
         {
-            CurrentPlayerId = 1 - CurrentPlayerId;
+            if (Phase != GamePhase.PlayerTurn)
+            {
+                return;
+            }
+
+            if (AllPlayersFinished())
+            {
+                EndRound();
+                return;
+            }
+
+            var nextPlayer = 1 - CurrentPlayerId;
+            if (_finishedThisRound[nextPlayer])
+            {
+                CurrentPlayerId = CurrentPlayerId;
+                return;
+            }
+
+            CurrentPlayerId = nextPlayer;
         }
 
         public PlacementResult ValidatePlacement(
@@ -124,6 +171,11 @@ namespace Peribind.Application.Sessions
             }
             else
             {
+                if (_finishedThisRound[CurrentPlayerId])
+                {
+                    return new PlacementResult(false, PlacementFailureReason.FinishedRound, BuildAbsoluteCells(piece, origin, rotation));
+                }
+
                 if (!_inventories[CurrentPlayerId].HasPiece(pieceId))
                 {
                     return new PlacementResult(false, PlacementFailureReason.NoRemainingPieces, BuildAbsoluteCells(piece, origin, rotation));
@@ -152,6 +204,85 @@ namespace Peribind.Application.Sessions
             }
 
             return placementResult;
+        }
+
+        public void FinishRoundForCurrentPlayer()
+        {
+            if (Phase != GamePhase.PlayerTurn || IsGameOver)
+            {
+                return;
+            }
+
+            _finishedThisRound[CurrentPlayerId] = true;
+            AdvanceTurn();
+        }
+
+        private bool AllPlayersFinished()
+        {
+            for (var i = 0; i < _finishedThisRound.Length; i++)
+            {
+                if (!_finishedThisRound[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private void EndRound()
+        {
+            ScoreRound();
+
+            if (CurrentRound >= 2)
+            {
+                IsGameOver = true;
+                return;
+            }
+
+            CurrentRound += 1;
+            StartRound(CurrentRound == 2 ? 1 : 0);
+        }
+
+        private void StartRound(int startingPlayerId)
+        {
+            Board.ClearAll();
+            _placedPieces.Clear();
+            _nextPieceInstanceId = 0;
+
+            for (var i = 0; i < _claimedTerritories.Length; i++)
+            {
+                _claimedTerritories[i].Clear();
+            }
+
+            for (var i = 0; i < _finishedThisRound.Length; i++)
+            {
+                _finishedThisRound[i] = false;
+            }
+
+            for (var i = 0; i < _inventories.Length; i++)
+            {
+                _inventories[i] = new PlayerInventory(new Dictionary<string, int>(_initialCounts[i]));
+            }
+
+            CurrentPlayerId = startingPlayerId;
+            Phase = GamePhase.CathedralPlacement;
+            RoundRevision++;
+        }
+
+        private void ScoreRound()
+        {
+            for (var playerId = 0; playerId < _inventories.Length; playerId++)
+            {
+                var score = 0;
+                foreach (var pair in _inventories[playerId].GetCounts())
+                {
+                    var size = _pieceSizes.TryGetValue(pair.Key, out var value) ? value : 0;
+                    score += size * pair.Value;
+                }
+
+                TotalScores[playerId] += score;
+            }
         }
 
         public IReadOnlyCollection<Cell> GetClaimedCells(int playerId)
@@ -383,6 +514,17 @@ namespace Peribind.Application.Sessions
             }
 
             return cells;
+        }
+
+        private static Dictionary<string, int> CopyCounts(PlayerInventory inventory)
+        {
+            var copy = new Dictionary<string, int>();
+            foreach (var pair in inventory.GetCounts())
+            {
+                copy[pair.Key] = pair.Value;
+            }
+
+            return copy;
         }
     }
 }

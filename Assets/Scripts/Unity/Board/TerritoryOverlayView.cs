@@ -59,6 +59,14 @@ namespace Peribind.Unity.Board
             }
         }
 
+        public void ClearAll()
+        {
+            for (var i = 0; i < _spawned.Count; i++)
+            {
+                _spawned[i].SetActive(false);
+            }
+        }
+
         private static int CountCells(Dictionary<int, List<Cell>> territories)
         {
             var count = 0;
