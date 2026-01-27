@@ -1,15 +1,11 @@
 {
-  "name": "Peribind",
+  "name": "Peribind.Editor",
   "references": [
-    "Unity.InputSystem",
-    "Unity.TextMeshPro",
-    "Unity.UGUI",
-    "Unity.Services.Core",
-    "Unity.Services.Authentication",
-    "Unity.Services.Multiplayer",
-    "Unity.Netcode.Runtime"
+    "Peribind"
   ],
-  "includePlatforms": [],
+  "includePlatforms": [
+    "Editor"
+  ],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,

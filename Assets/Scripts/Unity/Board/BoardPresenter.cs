@@ -3,6 +3,7 @@ using Peribind.Application.Sessions;
 using Peribind.Domain.Board;
 using Peribind.Domain.Pieces;
 using Peribind.Unity.Input;
+using Peribind.Unity.Networking;
 using Peribind.Unity.ScriptableObjects;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -19,6 +20,7 @@ namespace Peribind.Unity.Board
         [SerializeField] private PieceSelection pieceSelection;
         [SerializeField] private GameConfigSO gameConfig;
         [SerializeField] private InputReader inputReader;
+        [SerializeField] private NetworkGameController networkController;
 
         private GameSession _session;
         private Rotation _rotation = Rotation.Deg0;
@@ -40,6 +42,16 @@ namespace Peribind.Unity.Board
                 return;
             }
 
+            if (networkController == null)
+            {
+                networkController = FindObjectOfType<NetworkGameController>();
+            }
+
+            if (networkController != null)
+            {
+                return;
+            }
+
             if (gameConfig == null || gameConfig.PlayerOnePieceSet == null || gameConfig.PlayerTwoPieceSet == null || gameConfig.CathedralPiece == null)
             {
                 return;
@@ -50,8 +62,34 @@ namespace Peribind.Unity.Board
             _session = new GameSession(new BoardSize(gridMapper.Width, gridMapper.Height), gameConfig.CathedralPiece.Id, inventories, pieceSizes);
         }
 
+        private void OnEnable()
+        {
+            if (networkController != null)
+            {
+                networkController.SessionUpdated += OnSessionUpdated;
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (networkController != null)
+            {
+                networkController.SessionUpdated -= OnSessionUpdated;
+            }
+        }
+
         private void Update()
         {
+            if (_session == null && networkController != null && networkController.Session != null)
+            {
+                _session = networkController.Session;
+                _lastRoundRevision = -1;
+                _lastPhase = (GamePhase)(-1);
+                _placementRevision++;
+                RebuildPlacements();
+                UpdateTerritories();
+            }
+
             if (_session == null || inputReader == null || pieceSelection == null)
             {
                 return;
@@ -151,29 +189,36 @@ namespace Peribind.Unity.Board
 
             if (inputReader.ConsumePlacePressed() && result.IsValid)
             {
-                if (_session.TryPlacePiece(
-                    _currentPieceDefinition,
-                    pieceAsset.Id,
-                    cell,
-                    _rotation,
-                    out _,
-                    out _,
-                    out _,
-                    out _,
-                    out _))
+                if (networkController != null)
                 {
-                    if (placementView != null)
+                    networkController.RequestPlacePiece(pieceAsset.Id, cell, _rotation);
+                }
+                else
+                {
+                    if (_session.TryPlacePiece(
+                        _currentPieceDefinition,
+                        pieceAsset.Id,
+                        cell,
+                        _rotation,
+                        out _,
+                        out _,
+                        out _,
+                        out _,
+                        out _))
                     {
-                        RebuildPlacements();
-                    }
+                        if (placementView != null)
+                        {
+                            RebuildPlacements();
+                        }
 
-                    _placementRevision++;
-                    if (_session.Phase == GamePhase.PlayerTurn)
-                    {
-                        pieceSelection.ClearSelection();
-                    }
+                        _placementRevision++;
+                        if (_session.Phase == GamePhase.PlayerTurn)
+                        {
+                            pieceSelection.ClearSelection();
+                        }
 
-                    UpdateTerritories();
+                        UpdateTerritories();
+                    }
                 }
             }
         }
@@ -203,6 +248,11 @@ namespace Peribind.Unity.Board
                 return;
             }
 
+            if (networkController != null && !networkController.IsLocalPlayerTurn())
+            {
+                return;
+            }
+
             var step = inputReader.ConsumeSelectStep();
             if (step == 0)
             {
@@ -223,6 +273,10 @@ namespace Peribind.Unity.Board
 
             if (_session.Phase == GamePhase.CathedralPlacement)
             {
+                if (networkController != null && !networkController.IsLocalPlayerTurn())
+                {
+                    return null;
+                }
                 return gameConfig != null ? gameConfig.CathedralPiece : null;
             }
 
@@ -239,6 +293,10 @@ namespace Peribind.Unity.Board
 
             if (_session.HasPieceForCurrentPlayer(piece.Id))
             {
+                if (networkController != null && !networkController.IsLocalPlayerTurn())
+                {
+                    return null;
+                }
                 return piece;
             }
 
@@ -458,8 +516,27 @@ namespace Peribind.Unity.Board
                 return;
             }
 
-            _session.FinishRoundForCurrentPlayer();
+            if (networkController != null)
+            {
+                networkController.RequestFinishRound();
+            }
+            else
+            {
+                _session.FinishRoundForCurrentPlayer();
+                _placementRevision++;
+                UpdateTerritories();
+            }
+        }
+
+        private void OnSessionUpdated()
+        {
             _placementRevision++;
+            if (_session != null && _session.Phase == GamePhase.PlayerTurn && pieceSelection != null)
+            {
+                pieceSelection.ClearSelection();
+            }
+
+            RebuildPlacements();
             UpdateTerritories();
         }
     }

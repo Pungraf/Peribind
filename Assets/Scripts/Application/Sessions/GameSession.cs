@@ -295,6 +295,128 @@ namespace Peribind.Application.Sessions
             return _claimedTerritories[playerId];
         }
 
+        public GameSessionSnapshot BuildSnapshot()
+        {
+            var placed = new List<PlacedPieceSnapshot>();
+            foreach (var piece in _placedPieces.Values)
+            {
+                placed.Add(new PlacedPieceSnapshot
+                {
+                    InstanceId = piece.InstanceId,
+                    PlayerId = piece.PlayerId,
+                    PieceId = piece.PieceId,
+                    IsCathedral = piece.IsCathedral,
+                    Cells = new List<Cell>(piece.Cells)
+                });
+            }
+
+            var inventories = new Dictionary<string, int>[_inventories.Length];
+            for (var i = 0; i < _inventories.Length; i++)
+            {
+                inventories[i] = new Dictionary<string, int>(_inventories[i].GetCounts());
+            }
+
+            var territories = new List<Cell>[_claimedTerritories.Length];
+            for (var i = 0; i < _claimedTerritories.Length; i++)
+            {
+                territories[i] = new List<Cell>(_claimedTerritories[i]);
+            }
+
+            return new GameSessionSnapshot
+            {
+                CurrentPlayerId = CurrentPlayerId,
+                Phase = Phase,
+                CurrentRound = CurrentRound,
+                RoundRevision = RoundRevision,
+                IsGameOver = IsGameOver,
+                TotalScores = (int[])TotalScores.Clone(),
+                FinishedThisRound = (bool[])_finishedThisRound.Clone(),
+                Inventories = inventories,
+                PlacedPieces = placed,
+                ClaimedTerritories = territories
+            };
+        }
+
+        public void LoadSnapshot(GameSessionSnapshot snapshot)
+        {
+            if (snapshot == null)
+            {
+                return;
+            }
+
+            Board.ClearAll();
+            _placedPieces.Clear();
+            _nextPieceInstanceId = 0;
+
+            for (var i = 0; i < _claimedTerritories.Length; i++)
+            {
+                _claimedTerritories[i].Clear();
+            }
+
+            if (snapshot.Inventories != null)
+            {
+                for (var i = 0; i < _inventories.Length && i < snapshot.Inventories.Length; i++)
+                {
+                    _inventories[i] = new PlayerInventory(new Dictionary<string, int>(snapshot.Inventories[i]));
+                }
+            }
+
+            CurrentPlayerId = snapshot.CurrentPlayerId;
+            Phase = snapshot.Phase;
+            CurrentRound = snapshot.CurrentRound;
+            RoundRevision = snapshot.RoundRevision;
+            IsGameOver = snapshot.IsGameOver;
+
+            if (TotalScores != null && snapshot.TotalScores != null)
+            {
+                for (var i = 0; i < TotalScores.Length && i < snapshot.TotalScores.Length; i++)
+                {
+                    TotalScores[i] = snapshot.TotalScores[i];
+                }
+            }
+
+            if (snapshot.FinishedThisRound != null)
+            {
+                for (var i = 0; i < _finishedThisRound.Length && i < snapshot.FinishedThisRound.Length; i++)
+                {
+                    _finishedThisRound[i] = snapshot.FinishedThisRound[i];
+                }
+            }
+
+            if (snapshot.ClaimedTerritories != null)
+            {
+                for (var i = 0; i < _claimedTerritories.Length && i < snapshot.ClaimedTerritories.Length; i++)
+                {
+                    _claimedTerritories[i].UnionWith(snapshot.ClaimedTerritories[i]);
+                }
+            }
+
+            if (snapshot.PlacedPieces == null)
+            {
+                return;
+            }
+
+            foreach (var piece in snapshot.PlacedPieces)
+            {
+                if (piece == null || piece.Cells == null)
+                {
+                    continue;
+                }
+
+                var occupant = new CellOccupant(piece.PlayerId, piece.InstanceId, piece.PieceId);
+                foreach (var cell in piece.Cells)
+                {
+                    Board.SetOccupant(cell, occupant);
+                }
+
+                _placedPieces[piece.InstanceId] = new PlacedPiece(piece.InstanceId, piece.PlayerId, piece.PieceId, piece.Cells, piece.IsCathedral);
+                if (piece.InstanceId > _nextPieceInstanceId)
+                {
+                    _nextPieceInstanceId = piece.InstanceId;
+                }
+            }
+        }
+
         public Dictionary<int, List<Cell>> GetClaimedTerritories()
         {
             var result = new Dictionary<int, List<Cell>>();
