@@ -2,6 +2,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Peribind.Unity.Board;
+using Peribind.Unity.Networking;
 using UnityEngine.SceneManagement;
 using UnityEngine.InputSystem;
 
@@ -19,17 +20,32 @@ namespace Peribind.Unity.UI
         [SerializeField] private GameObject gameOverPanel;
         [SerializeField] private string starterSceneName = "StarterScene";
         [SerializeField] private string gameSceneName = "GameScene";
+        [SerializeField] private string lobbySceneName = "LobbyScene";
+        private const float ExitTimeoutSeconds = 3f;
         [SerializeField] private TMP_Text playAgainButtonText;
         [SerializeField] private string playAgainLabel = "Play Again";
         [SerializeField] private string restartLabel = "Restart";
+        [SerializeField] private MultiplayerSessionController sessionController;
 
         private bool _menuOpen;
+        private bool _isExiting;
+        private Button[] _menuButtons;
 
         private void Awake()
         {
+            if (sessionController == null)
+            {
+                sessionController = FindObjectOfType<MultiplayerSessionController>();
+            }
+
             if (finishRoundButton != null)
             {
                 finishRoundButton.onClick.AddListener(OnFinishRoundClicked);
+            }
+
+            if (gameOverPanel != null)
+            {
+                _menuButtons = gameOverPanel.GetComponentsInChildren<Button>(true);
             }
         }
 
@@ -86,6 +102,7 @@ namespace Peribind.Unity.UI
             {
                 var shouldShow = boardPresenter.IsGameOver || _menuOpen;
                 gameOverPanel.SetActive(shouldShow);
+                UpdateMenuButtons(shouldShow);
             }
 
             if (playAgainButtonText != null)
@@ -128,12 +145,75 @@ namespace Peribind.Unity.UI
 
         public void PlayAgain()
         {
+            if (_isExiting)
+            {
+                return;
+            }
+
+            if (sessionController != null)
+            {
+                _ = sessionController.LeaveAndShutdownAsync(true);
+            }
             SceneManager.LoadScene(gameSceneName);
         }
 
         public void ExitToStarter()
         {
-            SceneManager.LoadScene(starterSceneName);
+            if (_isExiting)
+            {
+                return;
+            }
+
+            StartCoroutine(ExitFlow(starterSceneName));
+        }
+
+        private void UpdateMenuButtons(bool menuVisible)
+        {
+            if (_menuButtons == null || _menuButtons.Length == 0)
+            {
+                return;
+            }
+
+            foreach (var button in _menuButtons)
+            {
+                if (button != null)
+                {
+                    button.interactable = menuVisible;
+                }
+            }
+        }
+
+        public void OpenMenu()
+        {
+            _menuOpen = true;
+        }
+
+        public void CloseMenu()
+        {
+            _menuOpen = false;
+        }
+
+        private System.Collections.IEnumerator ExitFlow(string targetScene)
+        {
+            _isExiting = true;
+            _menuOpen = false;
+
+            if (gameOverPanel != null)
+            {
+                gameOverPanel.SetActive(false);
+            }
+
+            if (sessionController != null)
+            {
+                var leaveTask = sessionController.LeaveAndShutdownAsync(true);
+                var endTime = Time.unscaledTime + ExitTimeoutSeconds;
+                while (!leaveTask.IsCompleted && Time.unscaledTime < endTime)
+                {
+                    yield return null;
+                }
+            }
+
+            SceneManager.LoadScene(targetScene);
         }
     }
 }

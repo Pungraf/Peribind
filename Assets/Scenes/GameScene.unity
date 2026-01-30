@@ -2380,6 +2380,10 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   gridMapper: {fileID: 309313923}
   gameConfig: {fileID: 11400000, guid: 83934408b9aa1a64388207c36d6fcb7b, type: 2}
+  sessionController: {fileID: 0}
+  autoResyncIntervalSeconds: 10
+  resyncOnlyWhenIdle: 1
+  idleSecondsBeforeResync: 8
 --- !u!1 &782341145
 GameObject:
   m_ObjectHideFlags: 0
@@ -3419,9 +3423,11 @@ MonoBehaviour:
   gameOverPanel: {fileID: 260354600}
   starterSceneName: StarterScene
   gameSceneName: GameScene
+  lobbySceneName: LobbyScene
   playAgainButtonText: {fileID: 1196494269}
   playAgainLabel: Play Again
   restartLabel: Restart
+  sessionController: {fileID: 0}
 --- !u!4 &1286408495
 Transform:
   m_ObjectHideFlags: 0

@@ -144,6 +144,10 @@ namespace Peribind.Unity.Board
             if (inputReader.ConsumeCancelPressed())
             {
                 _placementPaused = true;
+                if (networkController != null)
+                {
+                    networkController.NotifyLocalInput();
+                }
             }
 
             var pieceAsset = GetActivePiece();
@@ -191,6 +195,10 @@ namespace Peribind.Unity.Board
             {
                 if (networkController != null)
                 {
+                    networkController.NotifyLocalInput();
+                }
+                if (networkController != null)
+                {
                     networkController.RequestPlacePiece(pieceAsset.Id, cell, _rotation);
                 }
                 else
@@ -231,6 +239,11 @@ namespace Peribind.Unity.Board
                 return;
             }
 
+            if (networkController != null)
+            {
+                networkController.NotifyLocalInput();
+            }
+
             var current = (int)_rotation;
             current = (current + step) % 4;
             if (current < 0)
@@ -257,6 +270,11 @@ namespace Peribind.Unity.Board
             if (step == 0)
             {
                 return;
+            }
+
+            if (networkController != null)
+            {
+                networkController.NotifyLocalInput();
             }
 
             SelectAvailablePiece(step > 0 ? 1 : -1);

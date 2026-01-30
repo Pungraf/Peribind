@@ -7,6 +7,7 @@ using Peribind.Domain.Pieces;
 using Peribind.Unity.Board;
 using Peribind.Unity.ScriptableObjects;
 using Unity.Netcode;
+using Unity.Services.Authentication;
 using UnityEngine;
 
 namespace Peribind.Unity.Networking
@@ -16,8 +17,18 @@ namespace Peribind.Unity.Networking
         [SerializeField] private GridMapper gridMapper;
         [SerializeField] private GameConfigSO gameConfig;
 
+        [SerializeField] private MultiplayerSessionController sessionController;
         private GameSession _session;
         private Dictionary<string, PieceDefinitionSO> _piecesById;
+        private readonly Dictionary<ulong, int> _clientToPlayerId = new Dictionary<ulong, int>();
+        private readonly Dictionary<ulong, string> _clientToAuthId = new Dictionary<ulong, string>();
+        private readonly Dictionary<string, int> _authToPlayerId = new Dictionary<string, int>();
+        private bool _localAuthRegistered;
+        [SerializeField] private float autoResyncIntervalSeconds = 10f;
+        [SerializeField] private bool resyncOnlyWhenIdle = true;
+        [SerializeField] private float idleSecondsBeforeResync = 8f;
+        private float _nextResyncTime;
+        private float _lastInputTime;
 
         public GameSession Session => _session;
         public event Action SessionUpdated;
@@ -26,12 +37,19 @@ namespace Peribind.Unity.Networking
 
         private void Awake()
         {
+            if (sessionController == null)
+            {
+                sessionController = FindObjectOfType<MultiplayerSessionController>();
+            }
+
             InitializeSessionIfNeeded();
         }
 
         private void Start()
         {
             TrySpawnOnServer();
+            ScheduleNextResync();
+            _lastInputTime = Time.unscaledTime;
         }
 
         public override void OnNetworkSpawn()
@@ -40,8 +58,12 @@ namespace Peribind.Unity.Networking
 
             if (IsServer && NetworkManager.Singleton != null)
             {
+                CacheExistingClients();
                 NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
+                NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
             }
+
+            RegisterLocalPlayer();
         }
 
         public override void OnNetworkDespawn()
@@ -49,6 +71,7 @@ namespace Peribind.Unity.Networking
             if (IsServer && NetworkManager.Singleton != null)
             {
                 NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
+                NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
             }
 
             base.OnNetworkDespawn();
@@ -71,6 +94,34 @@ namespace Peribind.Unity.Networking
             {
                 networkObject.Spawn();
             }
+        }
+
+        private void Update()
+        {
+            if (!IsClient || IsServer)
+            {
+                return;
+            }
+
+            TryRegisterLocalPlayer();
+
+            if (autoResyncIntervalSeconds <= 0f || !IsSpawned)
+            {
+                return;
+            }
+
+            if (Time.unscaledTime < _nextResyncTime)
+            {
+                return;
+            }
+
+            if (resyncOnlyWhenIdle && Time.unscaledTime - _lastInputTime < Mathf.Max(0f, idleSecondsBeforeResync))
+            {
+                return;
+            }
+
+            _nextResyncTime = Time.unscaledTime + autoResyncIntervalSeconds;
+            RequestResync();
         }
 
         private void InitializeSessionIfNeeded()
@@ -98,9 +149,9 @@ namespace Peribind.Unity.Networking
                 return false;
             }
 
-            if (_session.Phase == GamePhase.CathedralPlacement)
+            if (_session.IsGameOver)
             {
-                return LocalPlayerId == 0;
+                return false;
             }
 
             return _session.CurrentPlayerId == LocalPlayerId;
@@ -121,6 +172,12 @@ namespace Peribind.Unity.Networking
 
             if (IsServer)
             {
+                if (!CanPlayerAct(LocalPlayerId))
+                {
+                    RejectAction(NetworkManager.ServerClientId, "Not your turn.");
+                    return;
+                }
+
                 ApplyPlacement(pieceId, origin, rotation, isFromNetwork: false);
                 PlacePieceClientRpc(pieceId, origin.X, origin.Y, (int)rotation);
                 return;
@@ -144,12 +201,40 @@ namespace Peribind.Unity.Networking
 
             if (IsServer)
             {
+                if (!CanPlayerAct(LocalPlayerId))
+                {
+                    RejectAction(NetworkManager.ServerClientId, "Not your turn.");
+                    return;
+                }
+
                 ApplyFinishRound(isFromNetwork: false);
                 FinishRoundClientRpc();
                 return;
             }
 
             FinishRoundServerRpc();
+        }
+
+        public void RequestResync()
+        {
+            if (!IsSpawned)
+            {
+                Debug.LogWarning("NetworkGameController is not spawned yet. Ignoring resync request.");
+                return;
+            }
+
+            if (IsServer)
+            {
+                SendSnapshotToClient(NetworkManager.ServerClientId);
+                return;
+            }
+
+            RequestResyncServerRpc();
+        }
+
+        public void NotifyLocalInput()
+        {
+            _lastInputTime = Time.unscaledTime;
         }
 
         [ServerRpc(RequireOwnership = false)]
@@ -164,6 +249,7 @@ namespace Peribind.Unity.Networking
             var senderId = ResolvePlayerId(rpcParams.Receive.SenderClientId);
             if (!CanPlayerAct(senderId))
             {
+                RejectAction(rpcParams.Receive.SenderClientId, "Not your turn.");
                 return;
             }
 
@@ -199,11 +285,18 @@ namespace Peribind.Unity.Networking
             var senderId = ResolvePlayerId(rpcParams.Receive.SenderClientId);
             if (!CanPlayerAct(senderId))
             {
+                RejectAction(rpcParams.Receive.SenderClientId, "Not your turn.");
                 return;
             }
 
             ApplyFinishRound(isFromNetwork: false);
             FinishRoundClientRpc();
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        private void RequestResyncServerRpc(ServerRpcParams rpcParams = default)
+        {
+            SendSnapshotToClient(rpcParams.Receive.SenderClientId);
         }
 
         [ClientRpc]
@@ -237,6 +330,7 @@ namespace Peribind.Unity.Networking
                 if (isFromNetwork)
                 {
                     Debug.LogWarning($"Client placement desync for '{pieceId}' at {origin}.");
+                    RequestResync();
                 }
                 return false;
             }
@@ -263,7 +357,31 @@ namespace Peribind.Unity.Networking
                 return;
             }
 
+            AssignPlayerId(clientId);
             SendSnapshotToClient(clientId);
+        }
+
+        private void OnClientDisconnected(ulong clientId)
+        {
+            _clientToPlayerId.Remove(clientId);
+            if (!_clientToAuthId.TryGetValue(clientId, out var authId))
+            {
+                return;
+            }
+
+            _clientToAuthId.Remove(clientId);
+            _ = TryRemoveSessionPlayerAsync(authId);
+        }
+
+        private void ScheduleNextResync()
+        {
+            if (autoResyncIntervalSeconds <= 0f)
+            {
+                _nextResyncTime = float.MaxValue;
+                return;
+            }
+
+            _nextResyncTime = Time.unscaledTime + autoResyncIntervalSeconds;
         }
 
         private void SendSnapshotToClient(ulong clientId)
@@ -322,9 +440,9 @@ namespace Peribind.Unity.Networking
                 return false;
             }
 
-            if (_session.Phase == GamePhase.CathedralPlacement)
+            if (_session.IsGameOver)
             {
-                return playerId == 0;
+                return false;
             }
 
             return _session.CurrentPlayerId == playerId;
@@ -332,12 +450,200 @@ namespace Peribind.Unity.Networking
 
         private int ResolvePlayerId(ulong clientId)
         {
+            if (IsServer)
+            {
+                if (_clientToAuthId.TryGetValue(clientId, out var authId))
+                {
+                    var resolved = ResolvePlayerIdFromAuth(authId);
+                    if (resolved >= 0)
+                    {
+                        return resolved;
+                    }
+                }
+
+                if (_clientToPlayerId.TryGetValue(clientId, out var playerId))
+                {
+                    return playerId;
+                }
+
+                return clientId == NetworkManager.ServerClientId ? 0 : 1;
+            }
+
             if (NetworkManager.Singleton == null)
             {
                 return 0;
             }
 
-            return clientId == NetworkManager.ServerClientId ? 0 : 1;
+            var localAuthId = GetLocalAuthId();
+            var authResolved = ResolvePlayerIdFromAuth(localAuthId);
+            if (authResolved >= 0)
+            {
+                return authResolved;
+            }
+
+            return NetworkManager.Singleton.LocalClientId == NetworkManager.ServerClientId ? 0 : 1;
+        }
+
+        private void CacheExistingClients()
+        {
+            if (NetworkManager.Singleton == null)
+            {
+                return;
+            }
+
+            foreach (var clientId in NetworkManager.Singleton.ConnectedClientsIds)
+            {
+                AssignPlayerId(clientId);
+            }
+        }
+
+        private void RegisterLocalPlayer()
+        {
+            if (!IsClient)
+            {
+                return;
+            }
+
+            if (!AuthenticationService.Instance.IsSignedIn)
+            {
+                return;
+            }
+
+            var authId = AuthenticationService.Instance.PlayerId;
+            if (string.IsNullOrWhiteSpace(authId))
+            {
+                return;
+            }
+
+            _localAuthRegistered = true;
+
+            if (IsServer)
+            {
+                _clientToAuthId[NetworkManager.ServerClientId] = authId;
+                AssignPlayerIdByAuth(authId);
+                return;
+            }
+
+            RegisterPlayerServerRpc(authId);
+        }
+
+        private void TryRegisterLocalPlayer()
+        {
+            if (_localAuthRegistered)
+            {
+                return;
+            }
+
+            if (!AuthenticationService.Instance.IsSignedIn)
+            {
+                return;
+            }
+
+            RegisterLocalPlayer();
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        private void RegisterPlayerServerRpc(string authPlayerId, ServerRpcParams rpcParams = default)
+        {
+            if (string.IsNullOrWhiteSpace(authPlayerId))
+            {
+                return;
+            }
+
+            _clientToAuthId[rpcParams.Receive.SenderClientId] = authPlayerId;
+            AssignPlayerIdByAuth(authPlayerId);
+        }
+
+        private void AssignPlayerId(ulong clientId)
+        {
+            if (_clientToPlayerId.ContainsKey(clientId))
+            {
+                return;
+            }
+
+            var playerId = clientId == NetworkManager.ServerClientId ? 0 : 1;
+            _clientToPlayerId[clientId] = playerId;
+        }
+
+        private void AssignPlayerIdByAuth(string authId)
+        {
+            if (string.IsNullOrWhiteSpace(authId))
+            {
+                return;
+            }
+
+            if (_authToPlayerId.ContainsKey(authId))
+            {
+                return;
+            }
+
+            var resolved = ResolvePlayerIdFromAuth(authId);
+            if (resolved >= 0)
+            {
+                _authToPlayerId[authId] = resolved;
+                return;
+            }
+
+            _authToPlayerId[authId] = _authToPlayerId.ContainsValue(0) ? 1 : 0;
+        }
+
+        private int ResolvePlayerIdFromAuth(string authId)
+        {
+            if (string.IsNullOrWhiteSpace(authId))
+            {
+                return -1;
+            }
+
+            if (_authToPlayerId.TryGetValue(authId, out var existing))
+            {
+                return existing;
+            }
+
+            var session = sessionController != null ? sessionController.CurrentSession : null;
+            if (session != null && session.IsHost)
+            {
+                var hostId = session.AsHost().Host;
+                if (!string.IsNullOrWhiteSpace(hostId))
+                {
+                    return string.Equals(authId, hostId, StringComparison.Ordinal) ? 0 : 1;
+                }
+            }
+
+            return -1;
+        }
+
+        private static string GetLocalAuthId()
+        {
+            if (!AuthenticationService.Instance.IsSignedIn)
+            {
+                return string.Empty;
+            }
+
+            return AuthenticationService.Instance.PlayerId ?? string.Empty;
+        }
+
+        private void RejectAction(ulong clientId, string reason)
+        {
+            var clientParams = new ClientRpcParams
+            {
+                Send = new ClientRpcSendParams
+                {
+                    TargetClientIds = new[] { clientId }
+                }
+            };
+
+            NotifyActionRejectedClientRpc(reason, clientParams);
+        }
+
+        [ClientRpc]
+        private void NotifyActionRejectedClientRpc(string reason, ClientRpcParams rpcParams = default)
+        {
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                reason = "Action rejected by server.";
+            }
+
+            Debug.LogWarning(reason);
         }
 
         private static PlayerInventory[] BuildInventories(PieceSetSO playerOneSet, PieceSetSO playerTwoSet)
@@ -681,6 +987,26 @@ namespace Peribind.Unity.Networking
             }
 
             return territories;
+        }
+
+        private async System.Threading.Tasks.Task TryRemoveSessionPlayerAsync(string authId)
+        {
+            if (!IsServer || string.IsNullOrWhiteSpace(authId))
+            {
+                return;
+            }
+
+            try
+            {
+                if (sessionController != null)
+                {
+                    await sessionController.RemovePlayerAsync(authId);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"Failed to remove player '{authId}' from session: {ex.Message}");
+            }
         }
     }
 }

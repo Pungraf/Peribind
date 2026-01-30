@@ -1,4 +1,6 @@
 using System;
+using Unity.Netcode;
+using Unity.Netcode.Transports.UTP;
 using Unity.Services.Multiplayer;
 using UnityEngine;
 
@@ -11,9 +13,16 @@ namespace Peribind.Unity.Networking
         [SerializeField] private string sessionType = "Session";
         [SerializeField] private bool autoCreateOnQuickJoin = true;
         [SerializeField] private float quickJoinTimeoutSeconds = 5f;
+        [SerializeField] private float leaveTimeoutSeconds = 6f;
+        [SerializeField] private bool verboseLogging = true;
 
         private ISession _session;
         private bool _eventsBound;
+        private bool _isPrimaryInstance;
+        private bool _isLeaving;
+        private bool _hasShutdown;
+        private System.Threading.Tasks.Task _leaveTask;
+        public const string GameStartedKey = "game_started";
 
         private void Awake()
         {
@@ -21,16 +30,47 @@ namespace Peribind.Unity.Networking
             var existing = FindObjectsOfType<MultiplayerSessionController>();
             if (existing.Length > 1)
             {
+                _isPrimaryInstance = false;
                 Destroy(gameObject);
                 return;
             }
 
+            _isPrimaryInstance = true;
             DontDestroyOnLoad(gameObject);
+
+            if (services == null)
+            {
+                services = FindObjectOfType<ServicesBootstrap>();
+            }
+        }
+
+        private void OnApplicationQuit()
+        {
+            if (!_isPrimaryInstance)
+            {
+                return;
+            }
+
+            _ = ShutdownAsync(true);
+        }
+
+        private void OnDestroy()
+        {
+            if (!_isPrimaryInstance)
+            {
+                return;
+            }
+
+            _ = ShutdownAsync(true);
         }
 
         public string CurrentSessionId => _session != null ? _session.Id : string.Empty;
         public string CurrentSessionCode => _session != null ? _session.Code : string.Empty;
         public bool HasSession => _session != null;
+        public ISession CurrentSession => _session;
+        public bool IsGameStarted => GetBoolSessionProperty(GameStartedKey);
+        public bool IsLeaving => _isLeaving;
+        public string CurrentPlayerId => _session?.CurrentPlayer?.Id ?? string.Empty;
 
         public async void CreateSession()
         {
@@ -39,16 +79,23 @@ namespace Peribind.Unity.Networking
                 return;
             }
 
+            EnsureNetworkManager();
+            ResetLocalSessionState();
+            LogNetworkState("CreateSession (after reset)");
+
             try
             {
                 var options = new SessionOptions
                 {
                     MaxPlayers = maxPlayers,
-                    Type = sessionType
+                    Type = sessionType,
+                    IsLocked = false,
+                    IsPrivate = false
                 }.WithRelayNetwork();
 
                 _session = await MultiplayerService.Instance.CreateSessionAsync(options);
                 BindSessionEvents();
+                await EnsureGameStartedPropertyAsync(false);
                 Debug.Log($"Session created. Id={_session.Id} Code={_session.Code}");
             }
             catch (Exception ex)
@@ -64,11 +111,16 @@ namespace Peribind.Unity.Networking
                 Debug.LogWarning("JoinSessionByCode called with empty sessionCode.");
                 return;
             }
+            Debug.Log($"[Multiplayer] JoinSessionByCode called. Code='{sessionCode}'");
 
             if (!await EnsureServicesReady())
             {
                 return;
             }
+
+            EnsureNetworkManager();
+            ResetLocalSessionState();
+            LogNetworkState("JoinSessionByCode (after reset)");
 
             try
             {
@@ -89,6 +141,10 @@ namespace Peribind.Unity.Networking
                 return;
             }
 
+            EnsureNetworkManager();
+            ResetLocalSessionState();
+            LogNetworkState("QuickJoinOrCreate (after reset)");
+
             try
             {
                 var quickJoinOptions = new QuickJoinOptions
@@ -100,7 +156,9 @@ namespace Peribind.Unity.Networking
                 var sessionOptions = new SessionOptions
                 {
                     MaxPlayers = maxPlayers,
-                    Type = sessionType
+                    Type = sessionType,
+                    IsLocked = false,
+                    IsPrivate = false
                 }.WithRelayNetwork();
 
                 _session = await MultiplayerService.Instance.MatchmakeSessionAsync(quickJoinOptions, sessionOptions);
@@ -115,24 +173,183 @@ namespace Peribind.Unity.Networking
 
         public async void LeaveSession()
         {
+            await LeaveSessionAsync();
+        }
+
+        public void LeaveAndShutdown()
+        {
+            _ = LeaveAndShutdownAsync(true);
+        }
+
+        public void LeaveAndShutdown(bool destroyNetworkManager)
+        {
+            _ = LeaveAndShutdownAsync(destroyNetworkManager);
+        }
+
+        public async System.Threading.Tasks.Task LeaveAndShutdownAsync(bool destroyNetworkManager)
+        {
+            await LeaveSessionAsync();
+            ShutdownNetwork(destroyNetworkManager);
+        }
+
+        private async System.Threading.Tasks.Task ShutdownAsync(bool destroyNetworkManager)
+        {
+            if (_hasShutdown)
+            {
+                return;
+            }
+
+            _hasShutdown = true;
+            await LeaveSessionAsync();
+            ShutdownNetwork(destroyNetworkManager);
+        }
+
+        public System.Threading.Tasks.Task LeaveSessionAsync()
+        {
+            if (_leaveTask != null)
+            {
+                return _leaveTask;
+            }
+
+            _leaveTask = LeaveSessionInternalAsync();
+            return _leaveTask;
+        }
+
+        private async System.Threading.Tasks.Task LeaveSessionInternalAsync()
+        {
             if (_session == null)
+            {
+                _leaveTask = null;
+                return;
+            }
+
+            _isLeaving = true;
+            var session = _session;
+
+            try
+            {
+                Debug.Log($"[Multiplayer] LeaveSessionAsync starting. SessionId={session.Id} PlayerId={session.CurrentPlayer?.Id}");
+                var leaveTask = session.LeaveAsync();
+                var timeoutSeconds = Mathf.Max(0f, leaveTimeoutSeconds);
+                if (timeoutSeconds > 0f)
+                {
+                    var completed = await System.Threading.Tasks.Task.WhenAny(
+                        leaveTask,
+                        System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(timeoutSeconds)));
+
+                    if (completed != leaveTask)
+                    {
+                        Debug.LogWarning($"[Multiplayer] LeaveSessionAsync timed out after {timeoutSeconds:0.0}s. Clearing local state.");
+                    }
+                    else
+                    {
+                        await leaveTask;
+                        Debug.Log("[Multiplayer] LeaveSessionAsync completed.");
+                    }
+                }
+                else
+                {
+                    await leaveTask;
+                    Debug.Log("[Multiplayer] LeaveSessionAsync completed.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"LeaveSession failed: {ex.Message}");
+            }
+            finally
+            {
+                _isLeaving = false;
+                UnbindSessionEvents();
+                _session = null;
+                _leaveTask = null;
+            }
+        }
+
+        public async System.Threading.Tasks.Task RemovePlayerAsync(string playerId)
+        {
+            if (_session == null || string.IsNullOrWhiteSpace(playerId))
             {
                 return;
             }
 
             try
             {
-                await _session.LeaveAsync();
+                if (_session.IsHost)
+                {
+                    await _session.AsHost().RemovePlayerAsync(playerId);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"RemovePlayerAsync failed: {ex.Message}");
+            }
+        }
+
+        public async void StartGameAsHost()
+        {
+            if (_session == null || !_session.IsHost)
+            {
+                Debug.LogWarning("StartGameAsHost called but no host session is active.");
+                return;
+            }
+
+            try
+            {
+                await EnsureGameStartedPropertyAsync(true);
             }
             catch (Exception ex)
             {
                 Debug.LogException(ex);
             }
-            finally
+        }
+
+        private static void ShutdownNetwork(bool destroyNetworkManager)
+        {
+            var manager = NetworkManager.Singleton;
+            if (manager != null)
             {
-                UnbindSessionEvents();
-                _session = null;
+                Debug.Log($"[Multiplayer] ShutdownNetwork destroy={destroyNetworkManager} IsServer={manager.IsServer} IsClient={manager.IsClient} IsHost={manager.IsHost}");
+                Debug.Log($"[Multiplayer] ShutdownNetwork stack:\n{Environment.StackTrace}");
+                manager.Shutdown();
+                if (destroyNetworkManager)
+                {
+                    Destroy(manager.gameObject);
+                }
             }
+        }
+
+        private static void EnsureNetworkManager()
+        {
+            if (NetworkManager.Singleton != null)
+            {
+                return;
+            }
+
+            var managerObject = new GameObject("NetworkManager");
+            managerObject.AddComponent<NetworkManagerBootstrap>();
+
+            var transport = managerObject.AddComponent<UnityTransport>();
+            var manager = managerObject.AddComponent<NetworkManager>();
+
+            if (manager.NetworkConfig == null)
+            {
+                manager.NetworkConfig = new NetworkConfig();
+            }
+
+            manager.NetworkConfig.NetworkTransport = transport;
+            manager.NetworkConfig.EnableSceneManagement = true;
+        }
+
+        private void ResetLocalSessionState()
+        {
+            if (verboseLogging)
+            {
+                Debug.Log($"[Multiplayer] ResetLocalSessionState session={( _session != null ? _session.Id : "null")} eventsBound={_eventsBound}");
+            }
+            UnbindSessionEvents();
+            _session = null;
+            ShutdownNetwork(false);
         }
 
         private void BindSessionEvents()
@@ -200,11 +417,16 @@ namespace Peribind.Unity.Networking
         private void OnStateChanged(SessionState state)
         {
             Debug.Log($"Session event: StateChanged {state}");
+            LogNetworkState("OnStateChanged");
         }
 
         private void OnSessionChanged()
         {
             Debug.Log("Session event: Changed");
+            if (_session != null)
+            {
+                Debug.Log($"[Multiplayer] SessionChanged: Players={_session.Players?.Count ?? 0} CurrentPlayer={_session.CurrentPlayer?.Id}");
+            }
         }
 
         private void OnRemovedFromSession()
@@ -215,6 +437,10 @@ namespace Peribind.Unity.Networking
         private void OnSessionPropertiesChanged()
         {
             Debug.Log("Session event: SessionPropertiesChanged");
+            if (_session != null)
+            {
+                Debug.Log($"[Multiplayer] SessionProperties: game_started={IsGameStarted}");
+            }
         }
 
         private void OnPlayerPropertiesChanged()
@@ -232,13 +458,76 @@ namespace Peribind.Unity.Networking
             if (services != null)
             {
                 await services.InitializeAsync();
+                if (!services.IsInitialized)
+                {
+                    Debug.LogWarning("ServicesBootstrap failed to initialize.");
+                    return false;
+                }
             }
             else
             {
                 Debug.LogWarning("ServicesBootstrap not set. Add it to the scene for proper initialization.");
+                return false;
             }
 
             return true;
+        }
+
+        private bool GetBoolSessionProperty(string key)
+        {
+            if (_session == null || _session.Properties == null)
+            {
+                return false;
+            }
+
+            if (_session.Properties.TryGetValue(key, out var property) && property != null)
+            {
+                var value = property.Value;
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    return false;
+                }
+
+                if (string.Equals(value, "1", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(value, "true", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private async System.Threading.Tasks.Task EnsureGameStartedPropertyAsync(bool started)
+        {
+            if (_session == null || !_session.IsHost)
+            {
+                return;
+            }
+
+            var host = _session.AsHost();
+            host.SetProperty(GameStartedKey, new SessionProperty(started ? "1" : "0", VisibilityPropertyOptions.Public));
+            await host.SavePropertiesAsync();
+        }
+
+        private void LogNetworkState(string context)
+        {
+            if (!verboseLogging)
+            {
+                return;
+            }
+
+            var manager = NetworkManager.Singleton;
+            if (manager == null)
+            {
+                Debug.Log($"[Multiplayer] {context}: NetworkManager missing.");
+                return;
+            }
+
+            var transport = manager.NetworkConfig != null ? manager.NetworkConfig.NetworkTransport : null;
+            Debug.Log($"[Multiplayer] {context}: NM present IsServer={manager.IsServer} IsClient={manager.IsClient} IsHost={manager.IsHost} " +
+                      $"SceneMgmt={(manager.NetworkConfig != null && manager.NetworkConfig.EnableSceneManagement)} " +
+                      $"Transport={(transport != null ? transport.GetType().Name : "null")}");
         }
     }
 }
