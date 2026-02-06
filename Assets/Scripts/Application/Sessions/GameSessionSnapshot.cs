@@ -10,6 +10,9 @@ namespace Peribind.Application.Sessions
         public int CurrentRound { get; set; }
         public int RoundRevision { get; set; }
         public bool IsGameOver { get; set; }
+        public bool WasSurrendered { get; set; }
+        public int SurrenderingPlayerId { get; set; }
+        public int WinningPlayerId { get; set; }
         public int[] TotalScores { get; set; }
         public bool[] FinishedThisRound { get; set; }
         public Dictionary<string, int>[] Inventories { get; set; }

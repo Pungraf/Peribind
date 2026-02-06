@@ -32,8 +32,12 @@ namespace Peribind.Unity.Networking
 
         public GameSession Session => _session;
         public event Action SessionUpdated;
+        public event Action<int, int> SurrenderResolved;
 
         public int LocalPlayerId => ResolvePlayerId(NetworkManager.Singleton != null ? NetworkManager.Singleton.LocalClientId : 0);
+        public bool WasSurrendered => _session != null && _session.WasSurrendered;
+        public int SurrenderingPlayerId => _session != null ? _session.SurrenderingPlayerId : -1;
+        public int WinningPlayerId => _session != null ? _session.WinningPlayerId : -1;
 
         private void Awake()
         {
@@ -215,6 +219,23 @@ namespace Peribind.Unity.Networking
             FinishRoundServerRpc();
         }
 
+        public void RequestSurrender()
+        {
+            if (!IsSpawned)
+            {
+                Debug.LogWarning("NetworkGameController is not spawned yet. Ignoring surrender request.");
+                return;
+            }
+
+            if (IsServer)
+            {
+                ResolveSurrender(LocalPlayerId);
+                return;
+            }
+
+            SurrenderServerRpc();
+        }
+
         public void RequestResync()
         {
             if (!IsSpawned)
@@ -299,6 +320,13 @@ namespace Peribind.Unity.Networking
             SendSnapshotToClient(rpcParams.Receive.SenderClientId);
         }
 
+        [ServerRpc(RequireOwnership = false)]
+        private void SurrenderServerRpc(ServerRpcParams rpcParams = default)
+        {
+            var senderId = ResolvePlayerId(rpcParams.Receive.SenderClientId);
+            ResolveSurrender(senderId);
+        }
+
         [ClientRpc]
         private void FinishRoundClientRpc()
         {
@@ -309,6 +337,19 @@ namespace Peribind.Unity.Networking
 
             InitializeSessionIfNeeded();
             ApplyFinishRound(isFromNetwork: true);
+        }
+
+        [ClientRpc]
+        private void ApplySurrenderClientRpc(int surrenderingPlayerId, int winningPlayerId)
+        {
+            if (!IsServer)
+            {
+                InitializeSessionIfNeeded();
+                _session?.Surrender(surrenderingPlayerId);
+                SessionUpdated?.Invoke();
+            }
+
+            SurrenderResolved?.Invoke(surrenderingPlayerId, winningPlayerId);
         }
 
         private bool ApplyPlacement(string pieceId, Cell origin, Rotation rotation, bool isFromNetwork)
@@ -348,6 +389,21 @@ namespace Peribind.Unity.Networking
 
             _session.FinishRoundForCurrentPlayer();
             SessionUpdated?.Invoke();
+        }
+
+        private void ResolveSurrender(int surrenderingPlayerId)
+        {
+            InitializeSessionIfNeeded();
+            if (_session == null || _session.IsGameOver)
+            {
+                return;
+            }
+
+            _session.Surrender(surrenderingPlayerId);
+            SessionUpdated?.Invoke();
+
+            var winningPlayerId = _session.WinningPlayerId;
+            ApplySurrenderClientRpc(surrenderingPlayerId, winningPlayerId);
         }
 
         private void OnClientConnected(ulong clientId)
@@ -750,12 +806,15 @@ namespace Peribind.Unity.Networking
             using var stream = new MemoryStream();
             using var writer = new BinaryWriter(stream);
 
-            writer.Write(1); // version
+            writer.Write(2); // version
             writer.Write(snapshot.CurrentPlayerId);
             writer.Write((int)snapshot.Phase);
             writer.Write(snapshot.CurrentRound);
             writer.Write(snapshot.RoundRevision);
             writer.Write(snapshot.IsGameOver);
+            writer.Write(snapshot.WasSurrendered);
+            writer.Write(snapshot.SurrenderingPlayerId);
+            writer.Write(snapshot.WinningPlayerId);
 
             WriteIntArray(writer, snapshot.TotalScores);
             WriteBoolArray(writer, snapshot.FinishedThisRound);
@@ -772,7 +831,7 @@ namespace Peribind.Unity.Networking
             using var reader = new BinaryReader(stream);
 
             var version = reader.ReadInt32();
-            if (version != 1)
+            if (version != 1 && version != 2)
             {
                 return null;
             }
@@ -783,13 +842,27 @@ namespace Peribind.Unity.Networking
                 Phase = (GamePhase)reader.ReadInt32(),
                 CurrentRound = reader.ReadInt32(),
                 RoundRevision = reader.ReadInt32(),
-                IsGameOver = reader.ReadBoolean(),
-                TotalScores = ReadIntArray(reader),
-                FinishedThisRound = ReadBoolArray(reader),
-                Inventories = ReadInventories(reader),
-                PlacedPieces = ReadPlacedPieces(reader),
-                ClaimedTerritories = ReadTerritories(reader)
+                IsGameOver = reader.ReadBoolean()
             };
+
+            if (version >= 2)
+            {
+                snapshot.WasSurrendered = reader.ReadBoolean();
+                snapshot.SurrenderingPlayerId = reader.ReadInt32();
+                snapshot.WinningPlayerId = reader.ReadInt32();
+            }
+            else
+            {
+                snapshot.WasSurrendered = false;
+                snapshot.SurrenderingPlayerId = -1;
+                snapshot.WinningPlayerId = -1;
+            }
+
+            snapshot.TotalScores = ReadIntArray(reader);
+            snapshot.FinishedThisRound = ReadBoolArray(reader);
+            snapshot.Inventories = ReadInventories(reader);
+            snapshot.PlacedPieces = ReadPlacedPieces(reader);
+            snapshot.ClaimedTerritories = ReadTerritories(reader);
 
             return snapshot;
         }

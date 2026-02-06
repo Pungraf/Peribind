@@ -24,6 +24,8 @@ namespace Peribind.Unity.UI
         [SerializeField] private float waitForSessionSeconds = 10f;
         [SerializeField] private bool waitForNetworkStart = true;
         private Coroutine _waitRoutine;
+        private bool _autoLoadTriggered;
+        private bool _isTransitionBusy;
 
         private void Awake()
         {
@@ -108,6 +110,8 @@ namespace Peribind.Unity.UI
             {
                 sessionController = FindObjectOfType<MultiplayerSessionController>(true);
             }
+
+            _autoLoadTriggered = false;
         }
 
         private void OnHostClicked()
@@ -128,8 +132,11 @@ namespace Peribind.Unity.UI
             }
 
             ClearSelection();
-            sessionController.CreateSession();
-            StartWaitForSession();
+            BeginLeaveThen(() =>
+            {
+                sessionController.CreateSession();
+                StartWaitForSession();
+            }, true);
         }
 
         private void OnJoinClicked()
@@ -152,8 +159,11 @@ namespace Peribind.Unity.UI
             ClearSelection();
             var code = joinCodeInput != null ? joinCodeInput.text : string.Empty;
             Debug.Log($"[LobbyMenu] Join clicked. Code='{code}'");
-            sessionController.JoinSessionByCode(code);
-            StartWaitForSession();
+            BeginLeaveThen(() =>
+            {
+                sessionController.JoinSessionByCode(code);
+                StartWaitForSession();
+            }, true);
         }
 
         private void OnQuickJoinClicked()
@@ -175,17 +185,19 @@ namespace Peribind.Unity.UI
 
             ClearSelection();
             Debug.Log("[LobbyMenu] QuickJoin clicked.");
-            sessionController.QuickJoinOrCreate();
-            StartWaitForSession();
+            BeginLeaveThen(() =>
+            {
+                sessionController.QuickJoinOrCreate();
+                StartWaitForSession();
+            }, true);
         }
 
         private void OnReturnClicked()
         {
-            if (sessionController != null)
+            BeginLeaveThen(() =>
             {
-                _ = sessionController.LeaveAndShutdownAsync(false);
-            }
-            SceneManager.LoadScene(starterSceneName);
+                SceneManager.LoadScene(starterSceneName);
+            }, false);
         }
 
         private void OnStartGameClicked()
@@ -241,6 +253,27 @@ namespace Peribind.Unity.UI
             }
         }
 
+        private void Update()
+        {
+            if (_autoLoadTriggered)
+            {
+                return;
+            }
+
+            if (sessionController == null || !sessionController.HasSession || !sessionController.IsGameStarted)
+            {
+                return;
+            }
+
+            var manager = NetworkManager.Singleton;
+            if (manager != null && manager.IsServer)
+            {
+                _autoLoadTriggered = true;
+                Debug.Log("[LobbyMenu] Auto-loading game scene for host (game already started).");
+                manager.SceneManager.LoadScene(gameSceneName, LoadSceneMode.Single);
+            }
+        }
+
         private static bool IsNetworkReady()
         {
             var manager = NetworkManager.Singleton;
@@ -250,6 +283,35 @@ namespace Peribind.Unity.UI
             }
 
             return manager.IsListening || manager.IsClient || manager.IsServer;
+        }
+
+        private void BeginLeaveThen(System.Action next, bool destroyNetworkManager)
+        {
+            if (_isTransitionBusy)
+            {
+                return;
+            }
+
+            _isTransitionBusy = true;
+            StartCoroutine(LeaveThen(next, destroyNetworkManager));
+        }
+
+        private IEnumerator LeaveThen(System.Action next, bool destroyNetworkManager)
+        {
+            if (sessionController != null)
+            {
+                var task = sessionController.LeaveAndShutdownAsync(destroyNetworkManager);
+                while (!task.IsCompleted)
+                {
+                    yield return null;
+                }
+            }
+
+            // Give transport a brief moment to fully release.
+            yield return null;
+
+            _isTransitionBusy = false;
+            next?.Invoke();
         }
 
         private void ClearSelection()

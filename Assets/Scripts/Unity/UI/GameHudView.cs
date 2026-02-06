@@ -15,20 +15,28 @@ namespace Peribind.Unity.UI
         [SerializeField] private TMP_Text playerTwoScoreText;
         [SerializeField] private TMP_Text roundText;
         [SerializeField] private TMP_Text turnText;
-        [SerializeField] private TMP_Text infoText;
+        [SerializeField] private TMP_Text stateText;
         [SerializeField] private Button finishRoundButton;
+        [SerializeField] private Button exitButton;
+        [SerializeField] private TMP_Text exitButtonText;
         [SerializeField] private GameObject gameOverPanel;
         [SerializeField] private string starterSceneName = "StarterScene";
         [SerializeField] private string gameSceneName = "GameScene";
         [SerializeField] private string lobbySceneName = "LobbyScene";
-        private const float ExitTimeoutSeconds = 3f;
-        [SerializeField] private TMP_Text playAgainButtonText;
-        [SerializeField] private string playAgainLabel = "Play Again";
-        [SerializeField] private string restartLabel = "Restart";
+        private const float ExitTimeoutSeconds = 8f;
         [SerializeField] private MultiplayerSessionController sessionController;
+        [SerializeField] private NetworkGameController networkController;
+        [SerializeField] private string surrenderingInfo = "You surrendered. Leaving match...";
+        [SerializeField] private string opponentSurrenderedInfo = "Opponent surrendered. You win.";
+        [SerializeField] private string surrenderButtonLabel = "Surrender";
+        [SerializeField] private string acknowledgeButtonLabel = "OK";
+        [SerializeField] private float surrenderExitDelaySeconds = 0.35f;
 
         private bool _menuOpen;
         private bool _isExiting;
+        private bool _awaitingSurrenderAcknowledge;
+        private bool _surrenderRequested;
+        private bool _networkEventsBound;
         private Button[] _menuButtons;
 
         private void Awake()
@@ -37,6 +45,19 @@ namespace Peribind.Unity.UI
             {
                 sessionController = FindObjectOfType<MultiplayerSessionController>();
             }
+
+            if (networkController == null)
+            {
+                networkController = FindObjectOfType<NetworkGameController>();
+            }
+            BindNetworkEventsIfNeeded();
+
+            if (stateText != null)
+            {
+                stateText.text = string.Empty;
+                stateText.gameObject.SetActive(false);
+            }
+            UpdateExitButtonState();
 
             if (finishRoundButton != null)
             {
@@ -49,12 +70,28 @@ namespace Peribind.Unity.UI
             }
         }
 
+        private void OnEnable()
+        {
+            if (networkController == null)
+            {
+                networkController = FindObjectOfType<NetworkGameController>();
+            }
+            BindNetworkEventsIfNeeded();
+        }
+
+        private void OnDisable()
+        {
+            UnbindNetworkEvents();
+        }
+
         private void OnDestroy()
         {
             if (finishRoundButton != null)
             {
                 finishRoundButton.onClick.RemoveListener(OnFinishRoundClicked);
             }
+
+            UnbindNetworkEvents();
         }
 
         private void Update()
@@ -63,6 +100,8 @@ namespace Peribind.Unity.UI
             {
                 return;
             }
+
+            BindNetworkEventsIfNeeded();
 
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame && !boardPresenter.IsGameOver)
             {
@@ -104,33 +143,29 @@ namespace Peribind.Unity.UI
                 gameOverPanel.SetActive(shouldShow);
                 UpdateMenuButtons(shouldShow);
             }
-
-            if (playAgainButtonText != null)
-            {
-                playAgainButtonText.text = boardPresenter.IsGameOver ? playAgainLabel : restartLabel;
-            }
+            UpdateExitButtonState();
         }
 
         public void ShowInfo(string message)
         {
-            if (infoText == null)
+            if (stateText == null)
             {
                 return;
             }
 
-            infoText.text = message;
-            infoText.gameObject.SetActive(true);
+            stateText.text = message;
+            stateText.gameObject.SetActive(true);
         }
 
         public void HideInfo()
         {
-            if (infoText == null)
+            if (stateText == null)
             {
                 return;
             }
 
-            infoText.text = string.Empty;
-            infoText.gameObject.SetActive(false);
+            stateText.text = string.Empty;
+            stateText.gameObject.SetActive(false);
         }
 
         private void OnFinishRoundClicked()
@@ -143,20 +178,6 @@ namespace Peribind.Unity.UI
             boardPresenter.FinishRoundForCurrentPlayer();
         }
 
-        public void PlayAgain()
-        {
-            if (_isExiting)
-            {
-                return;
-            }
-
-            if (sessionController != null)
-            {
-                _ = sessionController.LeaveAndShutdownAsync(true);
-            }
-            SceneManager.LoadScene(gameSceneName);
-        }
-
         public void ExitToStarter()
         {
             if (_isExiting)
@@ -164,7 +185,29 @@ namespace Peribind.Unity.UI
                 return;
             }
 
-            StartCoroutine(ExitFlow(starterSceneName));
+            if (_awaitingSurrenderAcknowledge && boardPresenter != null && boardPresenter.IsGameOver)
+            {
+                StartCoroutine(ExitFlow(starterSceneName));
+                return;
+            }
+
+            if (boardPresenter != null && boardPresenter.IsGameOver)
+            {
+                StartCoroutine(ExitFlow(starterSceneName));
+                return;
+            }
+
+            if (networkController == null)
+            {
+                StartCoroutine(ExitFlow(starterSceneName));
+                return;
+            }
+
+            ShowInfo(surrenderingInfo);
+            _surrenderRequested = true;
+            UpdateExitButtonState();
+            networkController.RequestSurrender();
+            StartCoroutine(LeaveAfterSurrenderRequest());
         }
 
         private void UpdateMenuButtons(bool menuVisible)
@@ -193,10 +236,52 @@ namespace Peribind.Unity.UI
             _menuOpen = false;
         }
 
+        private void OnSurrenderResolved(int surrenderingPlayerId, int winningPlayerId)
+        {
+            if (networkController == null)
+            {
+                return;
+            }
+
+            var localPlayerId = networkController.LocalPlayerId;
+            if (localPlayerId == surrenderingPlayerId)
+            {
+                ShowInfo(surrenderingInfo);
+                if (!_isExiting)
+                {
+                    StartCoroutine(ExitFlow(starterSceneName));
+                }
+                return;
+            }
+
+            var localWon = winningPlayerId >= 0 && localPlayerId == winningPlayerId;
+            ShowInfo(localWon ? opponentSurrenderedInfo : "Match ended.");
+            _surrenderRequested = false;
+            _awaitingSurrenderAcknowledge = true;
+            _menuOpen = true;
+            UpdateExitButtonState();
+        }
+
+        private System.Collections.IEnumerator LeaveAfterSurrenderRequest()
+        {
+            var delay = Mathf.Max(0f, surrenderExitDelaySeconds);
+            if (delay > 0f)
+            {
+                yield return new WaitForSecondsRealtime(delay);
+            }
+
+            if (!_isExiting)
+            {
+                StartCoroutine(ExitFlow(starterSceneName));
+            }
+        }
+
         private System.Collections.IEnumerator ExitFlow(string targetScene)
         {
             _isExiting = true;
             _menuOpen = false;
+            _awaitingSurrenderAcknowledge = false;
+            UpdateExitButtonState();
 
             if (gameOverPanel != null)
             {
@@ -214,6 +299,55 @@ namespace Peribind.Unity.UI
             }
 
             SceneManager.LoadScene(targetScene);
+        }
+
+        private void UpdateExitButtonState()
+        {
+            if (exitButtonText != null)
+            {
+                var label = (_awaitingSurrenderAcknowledge || _isExiting) ? acknowledgeButtonLabel : surrenderButtonLabel;
+                exitButtonText.text = label;
+            }
+
+            if (exitButton != null)
+            {
+                var menuVisible = gameOverPanel == null || gameOverPanel.activeSelf;
+                var shouldShow = menuVisible && (!_surrenderRequested || _awaitingSurrenderAcknowledge);
+                exitButton.gameObject.SetActive(shouldShow);
+                exitButton.enabled = shouldShow;
+            }
+        }
+
+        private void BindNetworkEventsIfNeeded()
+        {
+            if (_networkEventsBound)
+            {
+                return;
+            }
+
+            if (networkController == null)
+            {
+                networkController = FindObjectOfType<NetworkGameController>();
+            }
+
+            if (networkController == null)
+            {
+                return;
+            }
+
+            networkController.SurrenderResolved += OnSurrenderResolved;
+            _networkEventsBound = true;
+        }
+
+        private void UnbindNetworkEvents()
+        {
+            if (!_networkEventsBound || networkController == null)
+            {
+                return;
+            }
+
+            networkController.SurrenderResolved -= OnSurrenderResolved;
+            _networkEventsBound = false;
         }
     }
 }

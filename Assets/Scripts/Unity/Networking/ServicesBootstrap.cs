@@ -24,22 +24,21 @@ namespace Peribind.Unity.Networking
 
         public async Task InitializeAsync()
         {
-            if (IsInitialized)
+            if (!IsInitialized)
             {
-                return;
+                try
+                {
+                    await UnityServices.InitializeAsync();
+                    IsInitialized = true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogException(ex);
+                    return;
+                }
             }
 
-            try
-            {
-                await UnityServices.InitializeAsync();
-                IsInitialized = true;
-            }
-            catch (Exception ex)
-            {
-                Debug.LogException(ex);
-                return;
-            }
-
+            // Services can stay initialized while auth state changes (for example after restarts/sign-out).
             try
             {
                 if (!AuthenticationService.Instance.IsSignedIn)

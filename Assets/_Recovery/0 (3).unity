@@ -249,6 +249,9 @@ MonoBehaviour:
   quickJoinTimeoutSeconds: 5
   leaveTimeoutSeconds: 6
   verboseLogging: 1
+  relayReconnectBuffer: 1
+  disconnectTimeoutMs: 5000
+  heartbeatTimeoutMs: 500
 --- !u!114 &954795186
 MonoBehaviour:
   m_ObjectHideFlags: 0

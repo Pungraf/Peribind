@@ -25,6 +25,9 @@ namespace Peribind.Application.Sessions
         public int CurrentRound { get; private set; }
         public int[] TotalScores { get; }
         public bool IsGameOver { get; private set; }
+        public bool WasSurrendered { get; private set; }
+        public int SurrenderingPlayerId { get; private set; } = -1;
+        public int WinningPlayerId { get; private set; } = -1;
         public int RoundRevision { get; private set; }
         public bool[] FinishedThisRound => _finishedThisRound;
 
@@ -217,6 +220,24 @@ namespace Peribind.Application.Sessions
             AdvanceTurn();
         }
 
+        public void Surrender(int surrenderingPlayerId)
+        {
+            if (IsGameOver)
+            {
+                return;
+            }
+
+            if (surrenderingPlayerId < 0 || surrenderingPlayerId >= _inventories.Length)
+            {
+                return;
+            }
+
+            IsGameOver = true;
+            WasSurrendered = true;
+            SurrenderingPlayerId = surrenderingPlayerId;
+            WinningPlayerId = _inventories.Length == 2 ? 1 - surrenderingPlayerId : -1;
+        }
+
         private bool AllPlayersFinished()
         {
             for (var i = 0; i < _finishedThisRound.Length; i++)
@@ -237,6 +258,9 @@ namespace Peribind.Application.Sessions
             if (CurrentRound >= 2)
             {
                 IsGameOver = true;
+                WasSurrendered = false;
+                SurrenderingPlayerId = -1;
+                WinningPlayerId = DetermineWinnerFromScores();
                 return;
             }
 
@@ -329,6 +353,9 @@ namespace Peribind.Application.Sessions
                 CurrentRound = CurrentRound,
                 RoundRevision = RoundRevision,
                 IsGameOver = IsGameOver,
+                WasSurrendered = WasSurrendered,
+                SurrenderingPlayerId = SurrenderingPlayerId,
+                WinningPlayerId = WinningPlayerId,
                 TotalScores = (int[])TotalScores.Clone(),
                 FinishedThisRound = (bool[])_finishedThisRound.Clone(),
                 Inventories = inventories,
@@ -366,6 +393,9 @@ namespace Peribind.Application.Sessions
             CurrentRound = snapshot.CurrentRound;
             RoundRevision = snapshot.RoundRevision;
             IsGameOver = snapshot.IsGameOver;
+            WasSurrendered = snapshot.WasSurrendered;
+            SurrenderingPlayerId = snapshot.SurrenderingPlayerId;
+            WinningPlayerId = snapshot.WinningPlayerId;
 
             if (TotalScores != null && snapshot.TotalScores != null)
             {
@@ -555,6 +585,22 @@ namespace Peribind.Application.Sessions
             }
 
             return cathedralRemoved;
+        }
+
+        private int DetermineWinnerFromScores()
+        {
+            if (TotalScores == null || TotalScores.Length < 2)
+            {
+                return -1;
+            }
+
+            if (TotalScores[0] == TotalScores[1])
+            {
+                return -1;
+            }
+
+            // Lower score wins in Cathedral.
+            return TotalScores[0] < TotalScores[1] ? 0 : 1;
         }
 
         private bool RemoveNeutralPieces(IReadOnlyList<Cell> regionCells)
