@@ -36,6 +36,7 @@ namespace Peribind.Unity.UI
         private bool _isExiting;
         private bool _awaitingSurrenderAcknowledge;
         private bool _surrenderRequested;
+        private bool _gameOverHandled;
         private bool _networkEventsBound;
         private Button[] _menuButtons;
 
@@ -103,6 +104,16 @@ namespace Peribind.Unity.UI
 
             BindNetworkEventsIfNeeded();
 
+            if (!_awaitingSurrenderAcknowledge && !_surrenderRequested && !_isExiting &&
+                networkController != null && networkController.WasSurrendered && boardPresenter.IsGameOver)
+            {
+                var localPlayerId = networkController.LocalPlayerId;
+                var localWon = networkController.WinningPlayerId >= 0 && localPlayerId == networkController.WinningPlayerId;
+                ShowInfo(localWon ? opponentSurrenderedInfo : "Match ended.");
+                _awaitingSurrenderAcknowledge = true;
+                _menuOpen = true;
+            }
+
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame && !boardPresenter.IsGameOver)
             {
                 _menuOpen = !_menuOpen;
@@ -142,6 +153,27 @@ namespace Peribind.Unity.UI
                 var shouldShow = boardPresenter.IsGameOver || _menuOpen;
                 gameOverPanel.SetActive(shouldShow);
                 UpdateMenuButtons(shouldShow);
+            }
+            if (!boardPresenter.IsGameOver)
+            {
+                _gameOverHandled = false;
+            }
+            else if (!_gameOverHandled && networkController != null && !networkController.WasSurrendered)
+            {
+                var winner = networkController.WinningPlayerId;
+                if (winner >= 0)
+                {
+                    ShowInfo($"Game over. Player {winner + 1} won.");
+                }
+                else
+                {
+                    ShowInfo("Game over. Draw.");
+                }
+
+                _menuOpen = true;
+                _surrenderRequested = false;
+                _awaitingSurrenderAcknowledge = true;
+                _gameOverHandled = true;
             }
             UpdateExitButtonState();
         }
@@ -249,7 +281,15 @@ namespace Peribind.Unity.UI
                 ShowInfo(surrenderingInfo);
                 if (!_isExiting)
                 {
-                    StartCoroutine(ExitFlow(starterSceneName));
+                    var manager = global::Unity.Netcode.NetworkManager.Singleton;
+                    if (manager != null && manager.IsServer)
+                    {
+                        StartCoroutine(LeaveAfterSurrenderRequest());
+                    }
+                    else
+                    {
+                        StartCoroutine(ExitFlow(starterSceneName));
+                    }
                 }
                 return;
             }
@@ -265,9 +305,20 @@ namespace Peribind.Unity.UI
         private System.Collections.IEnumerator LeaveAfterSurrenderRequest()
         {
             var delay = Mathf.Max(0f, surrenderExitDelaySeconds);
-            if (delay > 0f)
+            var manager = global::Unity.Netcode.NetworkManager.Singleton;
+            var endTime = Time.unscaledTime + Mathf.Max(delay, 0.5f);
+            if (manager != null && manager.IsServer)
             {
-                yield return new WaitForSecondsRealtime(delay);
+                endTime = Time.unscaledTime + Mathf.Max(delay, 2.0f);
+            }
+
+            while (Time.unscaledTime < endTime)
+            {
+                if (manager != null && manager.IsServer && networkController != null && networkController.SurrenderAckReceived)
+                {
+                    break;
+                }
+                yield return null;
             }
 
             if (!_isExiting)
@@ -295,6 +346,25 @@ namespace Peribind.Unity.UI
                 while (!leaveTask.IsCompleted && Time.unscaledTime < endTime)
                 {
                     yield return null;
+                }
+            }
+            else
+            {
+                var manager = global::Unity.Netcode.NetworkManager.Singleton;
+                if (manager != null)
+                {
+                    if (manager.IsListening || manager.IsClient || manager.IsServer)
+                    {
+                        manager.Shutdown();
+                    }
+
+                    while (manager.ShutdownInProgress)
+                    {
+                        yield return null;
+                    }
+
+                    yield return null;
+                    Destroy(manager.gameObject);
                 }
             }
 

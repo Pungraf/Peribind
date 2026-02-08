@@ -24,6 +24,7 @@ namespace Peribind.Unity.Networking
         private readonly Dictionary<ulong, string> _clientToAuthId = new Dictionary<ulong, string>();
         private readonly Dictionary<string, int> _authToPlayerId = new Dictionary<string, int>();
         private bool _localAuthRegistered;
+        private int _localPlayerIdOverride = -1;
         [SerializeField] private float autoResyncIntervalSeconds = 10f;
         [SerializeField] private bool resyncOnlyWhenIdle = true;
         [SerializeField] private float idleSecondsBeforeResync = 8f;
@@ -38,6 +39,9 @@ namespace Peribind.Unity.Networking
         public bool WasSurrendered => _session != null && _session.WasSurrendered;
         public int SurrenderingPlayerId => _session != null ? _session.SurrenderingPlayerId : -1;
         public int WinningPlayerId => _session != null ? _session.WinningPlayerId : -1;
+        public bool SurrenderAckReceived => _surrenderAckReceived;
+
+        private bool _surrenderAckReceived;
 
         private void Awake()
         {
@@ -327,6 +331,12 @@ namespace Peribind.Unity.Networking
             ResolveSurrender(senderId);
         }
 
+        [ServerRpc(RequireOwnership = false)]
+        private void SurrenderAckServerRpc(ServerRpcParams rpcParams = default)
+        {
+            _surrenderAckReceived = true;
+        }
+
         [ClientRpc]
         private void FinishRoundClientRpc()
         {
@@ -347,6 +357,7 @@ namespace Peribind.Unity.Networking
                 InitializeSessionIfNeeded();
                 _session?.Surrender(surrenderingPlayerId);
                 SessionUpdated?.Invoke();
+                SurrenderAckServerRpc();
             }
 
             SurrenderResolved?.Invoke(surrenderingPlayerId, winningPlayerId);
@@ -399,6 +410,7 @@ namespace Peribind.Unity.Networking
                 return;
             }
 
+            _surrenderAckReceived = false;
             _session.Surrender(surrenderingPlayerId);
             SessionUpdated?.Invoke();
 
@@ -413,8 +425,39 @@ namespace Peribind.Unity.Networking
                 return;
             }
 
-            AssignPlayerId(clientId);
+            if (IsServer && _session != null && _session.IsGameOver)
+            {
+                ResetMatchState();
+            }
+
+            var assigned = AssignPlayerId(clientId);
+            SendAssignedPlayerId(clientId, assigned);
             SendSnapshotToClient(clientId);
+        }
+
+        private void SendAssignedPlayerId(ulong clientId, int playerId)
+        {
+            var clientParams = new ClientRpcParams
+            {
+                Send = new ClientRpcSendParams
+                {
+                    TargetClientIds = new[] { clientId }
+                }
+            };
+
+            AssignPlayerIdClientRpc(playerId, clientParams);
+        }
+
+        [ClientRpc]
+        private void AssignPlayerIdClientRpc(int playerId, ClientRpcParams rpcParams = default)
+        {
+            if (IsServer)
+            {
+                return;
+            }
+
+            _localPlayerIdOverride = playerId;
+            SessionUpdated?.Invoke();
         }
 
         private void OnClientDisconnected(ulong clientId)
@@ -422,11 +465,52 @@ namespace Peribind.Unity.Networking
             _clientToPlayerId.Remove(clientId);
             if (!_clientToAuthId.TryGetValue(clientId, out var authId))
             {
+                if (IsServer && _session != null && _session.IsGameOver && GetActiveClientCount() == 0)
+                {
+                    ResetMatchState();
+                }
                 return;
             }
 
             _clientToAuthId.Remove(clientId);
             _ = TryRemoveSessionPlayerAsync(authId);
+
+            if (IsServer && _session != null && _session.IsGameOver && GetActiveClientCount() == 0)
+            {
+                ResetMatchState();
+            }
+        }
+
+        private int GetActiveClientCount()
+        {
+            if (NetworkManager.Singleton == null)
+            {
+                return 0;
+            }
+
+            var count = 0;
+            foreach (var clientId in NetworkManager.Singleton.ConnectedClientsIds)
+            {
+                if (clientId == NetworkManager.ServerClientId)
+                {
+                    continue;
+                }
+
+                count++;
+            }
+
+            return count;
+        }
+
+        private void ResetMatchState()
+        {
+            _clientToPlayerId.Clear();
+            _clientToAuthId.Clear();
+            _authToPlayerId.Clear();
+            _localAuthRegistered = false;
+            _localPlayerIdOverride = -1;
+            _session = null;
+            InitializeSessionIfNeeded();
         }
 
         private void ScheduleNextResync()
@@ -530,6 +614,11 @@ namespace Peribind.Unity.Networking
                 return 0;
             }
 
+            if (_localPlayerIdOverride >= 0)
+            {
+                return _localPlayerIdOverride;
+            }
+
             var localAuthId = GetLocalAuthId();
             var authResolved = ResolvePlayerIdFromAuth(localAuthId);
             if (authResolved >= 0)
@@ -549,7 +638,8 @@ namespace Peribind.Unity.Networking
 
             foreach (var clientId in NetworkManager.Singleton.ConnectedClientsIds)
             {
-                AssignPlayerId(clientId);
+                var assigned = AssignPlayerId(clientId);
+                SendAssignedPlayerId(clientId, assigned);
             }
         }
 
@@ -560,13 +650,7 @@ namespace Peribind.Unity.Networking
                 return;
             }
 
-            if (!AuthenticationService.Instance.IsSignedIn)
-            {
-                return;
-            }
-
-            var authId = AuthenticationService.Instance.PlayerId;
-            if (string.IsNullOrWhiteSpace(authId))
+            if (!TryGetLocalAuthId(out var authId))
             {
                 return;
             }
@@ -590,7 +674,7 @@ namespace Peribind.Unity.Networking
                 return;
             }
 
-            if (!AuthenticationService.Instance.IsSignedIn)
+            if (!TryGetLocalAuthId(out _))
             {
                 return;
             }
@@ -610,15 +694,26 @@ namespace Peribind.Unity.Networking
             AssignPlayerIdByAuth(authPlayerId);
         }
 
-        private void AssignPlayerId(ulong clientId)
+        private int AssignPlayerId(ulong clientId)
         {
             if (_clientToPlayerId.ContainsKey(clientId))
             {
-                return;
+                return _clientToPlayerId[clientId];
             }
 
-            var playerId = clientId == NetworkManager.ServerClientId ? 0 : 1;
+            var manager = NetworkManager.Singleton;
+            var isDedicatedServer = manager != null && manager.IsServer && !manager.IsClient;
+            int playerId;
+            if (isDedicatedServer)
+            {
+                playerId = _clientToPlayerId.ContainsValue(0) ? 1 : 0;
+            }
+            else
+            {
+                playerId = clientId == NetworkManager.ServerClientId ? 0 : 1;
+            }
             _clientToPlayerId[clientId] = playerId;
+            return playerId;
         }
 
         private void AssignPlayerIdByAuth(string authId)
@@ -670,12 +765,31 @@ namespace Peribind.Unity.Networking
 
         private static string GetLocalAuthId()
         {
-            if (!AuthenticationService.Instance.IsSignedIn)
+            if (!TryGetLocalAuthId(out var authId))
             {
                 return string.Empty;
             }
 
-            return AuthenticationService.Instance.PlayerId ?? string.Empty;
+            return authId;
+        }
+
+        private static bool TryGetLocalAuthId(out string authId)
+        {
+            authId = string.Empty;
+            try
+            {
+                if (!AuthenticationService.Instance.IsSignedIn)
+                {
+                    return false;
+                }
+
+                authId = AuthenticationService.Instance.PlayerId ?? string.Empty;
+                return !string.IsNullOrWhiteSpace(authId);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         private void RejectAction(ulong clientId, string reason)
