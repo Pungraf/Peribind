@@ -30,6 +30,7 @@ namespace Peribind.Unity.Board
         private int _placementRevision;
         private GamePhase _lastPhase;
         private int _lastRoundRevision;
+        private bool _subscribedToSession;
 
         public int PlacementRevision => _placementRevision;
         public int CurrentPlayerId => _session != null ? _session.CurrentPlayerId : 0;
@@ -42,10 +43,7 @@ namespace Peribind.Unity.Board
                 return;
             }
 
-            if (networkController == null)
-            {
-                networkController = FindObjectOfType<NetworkGameController>();
-            }
+            EnsureNetworkController();
 
             if (networkController != null)
             {
@@ -64,10 +62,7 @@ namespace Peribind.Unity.Board
 
         private void OnEnable()
         {
-            if (networkController != null)
-            {
-                networkController.SessionUpdated += OnSessionUpdated;
-            }
+            EnsureNetworkController();
         }
 
         private void OnDisable()
@@ -76,10 +71,12 @@ namespace Peribind.Unity.Board
             {
                 networkController.SessionUpdated -= OnSessionUpdated;
             }
+            _subscribedToSession = false;
         }
 
         private void Update()
         {
+            EnsureNetworkController();
             if (_session == null && networkController != null && networkController.Session != null)
             {
                 _session = networkController.Session;
@@ -112,6 +109,8 @@ namespace Peribind.Unity.Board
                 {
                     territoryOverlayView.ClearAll();
                 }
+                RebuildPlacements();
+                UpdateTerritories();
                 _placementRevision++;
             }
 
@@ -556,6 +555,20 @@ namespace Peribind.Unity.Board
 
             RebuildPlacements();
             UpdateTerritories();
+        }
+
+        private void EnsureNetworkController()
+        {
+            if (networkController == null)
+            {
+                networkController = FindObjectOfType<NetworkGameController>();
+            }
+
+            if (networkController != null && !_subscribedToSession)
+            {
+                networkController.SessionUpdated += OnSessionUpdated;
+                _subscribedToSession = true;
+            }
         }
     }
 }

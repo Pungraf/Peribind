@@ -27,6 +27,10 @@ namespace Peribind.Unity.Board
         {
             if (pieceMaterial == null || cells == null || cells.Count == 0)
             {
+                if (pieceMaterial == null)
+                {
+                    Debug.LogWarning($"[BoardPlacementView] Missing pieceMaterial on '{name}'. Placement skipped.");
+                }
                 return;
             }
 

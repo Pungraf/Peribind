@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using Peribind.Application.Sessions;
 using Peribind.Domain.Board;
 using Peribind.Domain.Pieces;
 using Peribind.Unity.Board;
 using Peribind.Unity.ScriptableObjects;
 using Unity.Netcode;
-using Unity.Services.Authentication;
 using UnityEngine;
 
 namespace Peribind.Unity.Networking
@@ -17,19 +15,33 @@ namespace Peribind.Unity.Networking
         [SerializeField] private GridMapper gridMapper;
         [SerializeField] private GameConfigSO gameConfig;
 
-        [SerializeField] private MultiplayerSessionController sessionController;
+        [SerializeField] private PlayerIdentityProvider identityProvider;
+        [SerializeField] private string disconnectSceneName = "LobbyScene";
         private GameSession _session;
         private Dictionary<string, PieceDefinitionSO> _piecesById;
+        private Dictionary<int, string> _pieceIdByHash;
         private readonly Dictionary<ulong, int> _clientToPlayerId = new Dictionary<ulong, int>();
         private readonly Dictionary<ulong, string> _clientToAuthId = new Dictionary<ulong, string>();
         private readonly Dictionary<string, int> _authToPlayerId = new Dictionary<string, int>();
         private bool _localAuthRegistered;
         private int _localPlayerIdOverride = -1;
-        [SerializeField] private float autoResyncIntervalSeconds = 10f;
-        [SerializeField] private bool resyncOnlyWhenIdle = true;
-        [SerializeField] private float idleSecondsBeforeResync = 8f;
-        private float _nextResyncTime;
-        private float _lastInputTime;
+        private NetworkList<AuthPlayerNet> _authPlayerMap = new NetworkList<AuthPlayerNet>();
+        private NetworkList<PlacedPieceMetaNet> _placedPieceMeta = new NetworkList<PlacedPieceMetaNet>();
+        private NetworkList<PlacedPieceCellNet> _placedPieceCells = new NetworkList<PlacedPieceCellNet>();
+        private NetworkList<InventoryEntryNet> _inventoryEntries = new NetworkList<InventoryEntryNet>();
+        private NetworkList<TerritoryCellNet> _territoryCells = new NetworkList<TerritoryCellNet>();
+        private NetworkList<PlayerScoreNet> _playerScores = new NetworkList<PlayerScoreNet>();
+        private NetworkList<PlayerFinishedNet> _playerFinished = new NetworkList<PlayerFinishedNet>();
+
+        private NetworkVariable<int> _stateVersion = new NetworkVariable<int>();
+        private NetworkVariable<int> _currentPlayerId = new NetworkVariable<int>();
+        private NetworkVariable<int> _currentRound = new NetworkVariable<int>();
+        private NetworkVariable<int> _phase = new NetworkVariable<int>();
+        private NetworkVariable<int> _roundRevision = new NetworkVariable<int>();
+        private NetworkVariable<bool> _isGameOver = new NetworkVariable<bool>();
+        private NetworkVariable<bool> _wasSurrendered = new NetworkVariable<bool>();
+        private NetworkVariable<int> _surrenderingPlayerId = new NetworkVariable<int>();
+        private NetworkVariable<int> _winningPlayerId = new NetworkVariable<int>();
 
         public GameSession Session => _session;
         public event Action SessionUpdated;
@@ -45,9 +57,9 @@ namespace Peribind.Unity.Networking
 
         private void Awake()
         {
-            if (sessionController == null)
+            if (identityProvider == null)
             {
-                sessionController = FindObjectOfType<MultiplayerSessionController>();
+                identityProvider = FindObjectOfType<PlayerIdentityProvider>();
             }
 
             InitializeSessionIfNeeded();
@@ -56,13 +68,14 @@ namespace Peribind.Unity.Networking
         private void Start()
         {
             TrySpawnOnServer();
-            ScheduleNextResync();
-            _lastInputTime = Time.unscaledTime;
         }
 
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
+
+            InitializeNetworkLists();
+            Debug.Log($"[NetState] OnNetworkSpawn IsServer={IsServer} IsClient={IsClient} IsHost={IsHost}");
 
             if (IsServer && NetworkManager.Singleton != null)
             {
@@ -70,8 +83,22 @@ namespace Peribind.Unity.Networking
                 NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
                 NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
             }
+            else if (IsClient && NetworkManager.Singleton != null)
+            {
+                NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
+            }
 
             RegisterLocalPlayer();
+
+            if (!IsServer)
+            {
+                SubscribeToNetworkState();
+                StartCoroutine(DeferredApplyNetworkState());
+            }
+            else
+            {
+                SyncStateToNetwork();
+            }
         }
 
         public override void OnNetworkDespawn()
@@ -81,7 +108,12 @@ namespace Peribind.Unity.Networking
                 NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
                 NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
             }
+            else if (IsClient && NetworkManager.Singleton != null)
+            {
+                NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
+            }
 
+            UnsubscribeFromNetworkState();
             base.OnNetworkDespawn();
         }
 
@@ -112,24 +144,6 @@ namespace Peribind.Unity.Networking
             }
 
             TryRegisterLocalPlayer();
-
-            if (autoResyncIntervalSeconds <= 0f || !IsSpawned)
-            {
-                return;
-            }
-
-            if (Time.unscaledTime < _nextResyncTime)
-            {
-                return;
-            }
-
-            if (resyncOnlyWhenIdle && Time.unscaledTime - _lastInputTime < Mathf.Max(0f, idleSecondsBeforeResync))
-            {
-                return;
-            }
-
-            _nextResyncTime = Time.unscaledTime + autoResyncIntervalSeconds;
-            RequestResync();
         }
 
         private void InitializeSessionIfNeeded()
@@ -148,6 +162,7 @@ namespace Peribind.Unity.Networking
             var pieceSizes = BuildPieceSizes(gameConfig.PlayerOnePieceSet, gameConfig.PlayerTwoPieceSet, gameConfig.CathedralPiece);
             _session = new GameSession(new BoardSize(gridMapper.Width, gridMapper.Height), gameConfig.CathedralPiece.Id, inventories, pieceSizes);
             _piecesById = BuildPieceLookup(gameConfig);
+            _pieceIdByHash = BuildPieceHashLookup(gameConfig);
         }
 
         public bool IsLocalPlayerTurn()
@@ -248,18 +263,12 @@ namespace Peribind.Unity.Networking
                 return;
             }
 
-            if (IsServer)
-            {
-                SendSnapshotToClient(NetworkManager.ServerClientId);
-                return;
-            }
-
-            RequestResyncServerRpc();
+            // No-op in full Netcode replication mode.
         }
 
         public void NotifyLocalInput()
         {
-            _lastInputTime = Time.unscaledTime;
+            // No-op in full Netcode replication mode.
         }
 
         [ServerRpc(RequireOwnership = false)]
@@ -272,6 +281,7 @@ namespace Peribind.Unity.Networking
             }
 
             var senderId = ResolvePlayerId(rpcParams.Receive.SenderClientId);
+            Debug.Log($"[NetState] PlacePieceServerRpc sender={rpcParams.Receive.SenderClientId} playerId={senderId} piece={pieceId} at {x},{y} rot={rotation}");
             if (!CanPlayerAct(senderId))
             {
                 RejectAction(rpcParams.Receive.SenderClientId, "Not your turn.");
@@ -294,8 +304,7 @@ namespace Peribind.Unity.Networking
                 return;
             }
 
-            InitializeSessionIfNeeded();
-            ApplyPlacement(pieceId, new Cell(x, y), (Rotation)rotation, isFromNetwork: true);
+            // No-op; clients are driven by network state replication.
         }
 
         [ServerRpc(RequireOwnership = false)]
@@ -321,7 +330,7 @@ namespace Peribind.Unity.Networking
         [ServerRpc(RequireOwnership = false)]
         private void RequestResyncServerRpc(ServerRpcParams rpcParams = default)
         {
-            SendSnapshotToClient(rpcParams.Receive.SenderClientId);
+            // No-op in full Netcode replication mode.
         }
 
         [ServerRpc(RequireOwnership = false)]
@@ -345,8 +354,7 @@ namespace Peribind.Unity.Networking
                 return;
             }
 
-            InitializeSessionIfNeeded();
-            ApplyFinishRound(isFromNetwork: true);
+            // No-op; clients are driven by network state replication.
         }
 
         [ClientRpc]
@@ -354,9 +362,7 @@ namespace Peribind.Unity.Networking
         {
             if (!IsServer)
             {
-                InitializeSessionIfNeeded();
-                _session?.Surrender(surrenderingPlayerId);
-                SessionUpdated?.Invoke();
+                // No-op; clients are driven by network state replication.
                 SurrenderAckServerRpc();
             }
 
@@ -388,6 +394,10 @@ namespace Peribind.Unity.Networking
             }
 
             SessionUpdated?.Invoke();
+            if (IsServer)
+            {
+                SyncStateToNetwork();
+            }
             return true;
         }
 
@@ -400,6 +410,10 @@ namespace Peribind.Unity.Networking
 
             _session.FinishRoundForCurrentPlayer();
             SessionUpdated?.Invoke();
+            if (IsServer)
+            {
+                SyncStateToNetwork();
+            }
         }
 
         private void ResolveSurrender(int surrenderingPlayerId)
@@ -416,6 +430,7 @@ namespace Peribind.Unity.Networking
 
             var winningPlayerId = _session.WinningPlayerId;
             ApplySurrenderClientRpc(surrenderingPlayerId, winningPlayerId);
+            SyncStateToNetwork();
         }
 
         private void OnClientConnected(ulong clientId)
@@ -430,9 +445,16 @@ namespace Peribind.Unity.Networking
                 ResetMatchState();
             }
 
-            var assigned = AssignPlayerId(clientId);
-            SendAssignedPlayerId(clientId, assigned);
-            SendSnapshotToClient(clientId);
+            if (_clientToAuthId.TryGetValue(clientId, out var authId))
+            {
+                AssignPlayerIdByAuth(authId);
+                var assigned = ResolvePlayerIdFromAuth(authId);
+                if (assigned >= 0)
+                {
+                    _clientToPlayerId[clientId] = assigned;
+                    SendAssignedPlayerId(clientId, assigned);
+                }
+            }
         }
 
         private void SendAssignedPlayerId(ulong clientId, int playerId)
@@ -462,6 +484,16 @@ namespace Peribind.Unity.Networking
 
         private void OnClientDisconnected(ulong clientId)
         {
+            if (!IsServer)
+            {
+                if (NetworkManager.Singleton != null && clientId == NetworkManager.Singleton.LocalClientId)
+                {
+                    Debug.LogWarning("[NetworkGameController] Disconnected from server.");
+                    HandleClientDisconnected();
+                }
+                return;
+            }
+
             _clientToPlayerId.Remove(clientId);
             if (!_clientToAuthId.TryGetValue(clientId, out var authId))
             {
@@ -473,11 +505,24 @@ namespace Peribind.Unity.Networking
             }
 
             _clientToAuthId.Remove(clientId);
-            _ = TryRemoveSessionPlayerAsync(authId);
 
             if (IsServer && _session != null && _session.IsGameOver && GetActiveClientCount() == 0)
             {
                 ResetMatchState();
+            }
+        }
+
+        private void HandleClientDisconnected()
+        {
+            _localPlayerIdOverride = -1;
+            _localAuthRegistered = false;
+            _session = null;
+            _piecesById = null;
+            _pieceIdByHash = null;
+
+            if (!string.IsNullOrWhiteSpace(disconnectSceneName))
+            {
+                UnityEngine.SceneManagement.SceneManager.LoadScene(disconnectSceneName);
             }
         }
 
@@ -511,67 +556,14 @@ namespace Peribind.Unity.Networking
             _localPlayerIdOverride = -1;
             _session = null;
             InitializeSessionIfNeeded();
-        }
-
-        private void ScheduleNextResync()
-        {
-            if (autoResyncIntervalSeconds <= 0f)
-            {
-                _nextResyncTime = float.MaxValue;
-                return;
-            }
-
-            _nextResyncTime = Time.unscaledTime + autoResyncIntervalSeconds;
-        }
-
-        private void SendSnapshotToClient(ulong clientId)
-        {
-            if (_session == null)
-            {
-                InitializeSessionIfNeeded();
-            }
-
-            if (_session == null)
-            {
-                return;
-            }
-
-            var snapshot = _session.BuildSnapshot();
-            var payload = SerializeSnapshot(snapshot);
-            var clientParams = new ClientRpcParams
-            {
-                Send = new ClientRpcSendParams
-                {
-                    TargetClientIds = new[] { clientId }
-                }
-            };
-
-            ReceiveSnapshotClientRpc(payload, clientParams);
-        }
-
-        [ClientRpc]
-        private void ReceiveSnapshotClientRpc(byte[] payload, ClientRpcParams rpcParams = default)
-        {
             if (IsServer)
             {
-                return;
+                SyncStateToNetwork();
             }
-
-            if (payload == null || payload.Length == 0)
-            {
-                return;
-            }
-
-            InitializeSessionIfNeeded();
-            var snapshot = DeserializeSnapshot(payload);
-            if (snapshot == null)
-            {
-                return;
-            }
-
-            _session.LoadSnapshot(snapshot);
-            SessionUpdated?.Invoke();
         }
+
+
+        // Snapshot-based sync removed in favor of NetworkVariables/NetworkLists.
 
         private bool CanPlayerAct(int playerId)
         {
@@ -581,6 +573,11 @@ namespace Peribind.Unity.Networking
             }
 
             if (_session.IsGameOver)
+            {
+                return false;
+            }
+
+            if (playerId < 0)
             {
                 return false;
             }
@@ -619,11 +616,23 @@ namespace Peribind.Unity.Networking
                 return _localPlayerIdOverride;
             }
 
+            var mapped = ResolveLocalPlayerIdFromAuthMap();
+            if (mapped >= 0)
+            {
+                _localPlayerIdOverride = mapped;
+                return mapped;
+            }
+
             var localAuthId = GetLocalAuthId();
             var authResolved = ResolvePlayerIdFromAuth(localAuthId);
             if (authResolved >= 0)
             {
                 return authResolved;
+            }
+
+            if (IsMatchLocked() && _authToPlayerId.Count >= 2)
+            {
+                return -1;
             }
 
             return NetworkManager.Singleton.LocalClientId == NetworkManager.ServerClientId ? 0 : 1;
@@ -690,8 +699,44 @@ namespace Peribind.Unity.Networking
                 return;
             }
 
+            Debug.Log($"[NetState] RegisterPlayerServerRpc client={rpcParams.Receive.SenderClientId} auth={authPlayerId}");
+            if (IsAuthAlreadyConnected(authPlayerId, rpcParams.Receive.SenderClientId))
+            {
+                Debug.LogWarning($"[NetworkGameController] Rejecting duplicate auth '{authPlayerId}' for client {rpcParams.Receive.SenderClientId}.");
+                if (NetworkManager.Singleton != null)
+                {
+                    NetworkManager.Singleton.DisconnectClient(rpcParams.Receive.SenderClientId);
+                }
+                return;
+            }
+
+            if (IsMatchLocked() && !_authToPlayerId.ContainsKey(authPlayerId) && _authToPlayerId.Count >= 2)
+            {
+                Debug.LogWarning($"[NetworkGameController] Rejecting join for auth '{authPlayerId}' - match already started.");
+                var clientParams = new ClientRpcParams
+                {
+                    Send = new ClientRpcSendParams
+                    {
+                        TargetClientIds = new[] { rpcParams.Receive.SenderClientId }
+                    }
+                };
+                NotifyActionRejectedClientRpc("Match already started. Rejoin with original credentials.", clientParams);
+                if (NetworkManager.Singleton != null)
+                {
+                    NetworkManager.Singleton.DisconnectClient(rpcParams.Receive.SenderClientId);
+                }
+                return;
+            }
+
             _clientToAuthId[rpcParams.Receive.SenderClientId] = authPlayerId;
             AssignPlayerIdByAuth(authPlayerId);
+            var assigned = ResolvePlayerIdFromAuth(authPlayerId);
+            if (assigned >= 0)
+            {
+                _clientToPlayerId[rpcParams.Receive.SenderClientId] = assigned;
+                UpdateAuthMap(authPlayerId, assigned);
+                SendAssignedPlayerId(rpcParams.Receive.SenderClientId, assigned);
+            }
         }
 
         private int AssignPlayerId(ulong clientId)
@@ -728,14 +773,27 @@ namespace Peribind.Unity.Networking
                 return;
             }
 
+            if (IsMatchLocked() && _authToPlayerId.Count >= 2)
+            {
+                return;
+            }
+
             var resolved = ResolvePlayerIdFromAuth(authId);
             if (resolved >= 0)
             {
                 _authToPlayerId[authId] = resolved;
+                UpdateAuthMap(authId, resolved);
                 return;
             }
 
-            _authToPlayerId[authId] = _authToPlayerId.ContainsValue(0) ? 1 : 0;
+            if (!HasFreePlayerSlot())
+            {
+                return;
+            }
+
+            var assigned = _authToPlayerId.ContainsValue(0) ? 1 : 0;
+            _authToPlayerId[authId] = assigned;
+            UpdateAuthMap(authId, assigned);
         }
 
         private int ResolvePlayerIdFromAuth(string authId)
@@ -750,20 +808,118 @@ namespace Peribind.Unity.Networking
                 return existing;
             }
 
-            var session = sessionController != null ? sessionController.CurrentSession : null;
-            if (session != null && session.IsHost)
+            return -1;
+        }
+
+        private bool IsMatchLocked()
+        {
+            if (_session == null)
             {
-                var hostId = session.AsHost().Host;
-                if (!string.IsNullOrWhiteSpace(hostId))
+                return false;
+            }
+
+            if (_session.IsGameOver)
+            {
+                return false;
+            }
+
+            if (_session.PlacedPieces != null && _session.PlacedPieces.Count > 0)
+            {
+                return true;
+            }
+
+            return _session.CurrentRound > 1;
+        }
+
+        private bool HasFreePlayerSlot()
+        {
+            return !_authToPlayerId.ContainsValue(0) || !_authToPlayerId.ContainsValue(1);
+        }
+
+        private void UpdateAuthMap(string authId, int playerId)
+        {
+            if (!IsServer || string.IsNullOrWhiteSpace(authId))
+            {
+                return;
+            }
+
+            InitializeNetworkLists();
+            var hash = ComputeStableHash(authId);
+            for (var i = 0; i < _authPlayerMap.Count; i++)
+            {
+                if (_authPlayerMap[i].AuthHash == hash)
                 {
-                    return string.Equals(authId, hostId, StringComparison.Ordinal) ? 0 : 1;
+                    _authPlayerMap[i] = new AuthPlayerNet { AuthHash = hash, PlayerId = playerId };
+                    return;
+                }
+            }
+
+            _authPlayerMap.Add(new AuthPlayerNet { AuthHash = hash, PlayerId = playerId });
+        }
+
+        private int ResolveLocalPlayerIdFromAuthMap()
+        {
+            if (identityProvider == null)
+            {
+                identityProvider = FindObjectOfType<PlayerIdentityProvider>();
+            }
+
+            if (identityProvider == null)
+            {
+                return -1;
+            }
+
+            var authId = identityProvider.PlayerId;
+            if (string.IsNullOrWhiteSpace(authId))
+            {
+                return -1;
+            }
+
+            var hash = ComputeStableHash(authId);
+            for (var i = 0; i < _authPlayerMap.Count; i++)
+            {
+                if (_authPlayerMap[i].AuthHash == hash)
+                {
+                    return _authPlayerMap[i].PlayerId;
                 }
             }
 
             return -1;
         }
 
-        private static string GetLocalAuthId()
+        private void UpdateLocalPlayerIdFromAuthMap()
+        {
+            var mapped = ResolveLocalPlayerIdFromAuthMap();
+            if (mapped >= 0)
+            {
+                _localPlayerIdOverride = mapped;
+            }
+        }
+
+        private bool IsAuthAlreadyConnected(string authId, ulong clientId)
+        {
+            if (string.IsNullOrWhiteSpace(authId))
+            {
+                return false;
+            }
+
+            foreach (var pair in _clientToAuthId)
+            {
+                if (pair.Key == clientId)
+                {
+                    continue;
+                }
+
+                if (string.Equals(pair.Value, authId, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private string GetLocalAuthId()
         {
             if (!TryGetLocalAuthId(out var authId))
             {
@@ -773,23 +929,26 @@ namespace Peribind.Unity.Networking
             return authId;
         }
 
-        private static bool TryGetLocalAuthId(out string authId)
+        private bool TryGetLocalAuthId(out string authId)
         {
             authId = string.Empty;
-            try
-            {
-                if (!AuthenticationService.Instance.IsSignedIn)
-                {
-                    return false;
-                }
-
-                authId = AuthenticationService.Instance.PlayerId ?? string.Empty;
-                return !string.IsNullOrWhiteSpace(authId);
-            }
-            catch (Exception)
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer && !NetworkManager.Singleton.IsClient)
             {
                 return false;
             }
+
+            if (identityProvider == null)
+            {
+                identityProvider = FindObjectOfType<PlayerIdentityProvider>();
+            }
+
+            if (identityProvider == null)
+            {
+                return false;
+            }
+
+            authId = identityProvider.PlayerId ?? string.Empty;
+            return !string.IsNullOrWhiteSpace(authId);
         }
 
         private void RejectAction(ulong clientId, string reason)
@@ -814,6 +973,367 @@ namespace Peribind.Unity.Networking
             }
 
             Debug.LogWarning(reason);
+        }
+
+        private void InitializeNetworkLists()
+        {
+            // Lists are initialized at declaration to ensure Netcode syncs correctly.
+        }
+
+        private bool _networkSubscribed;
+
+        private void SubscribeToNetworkState()
+        {
+            if (_networkSubscribed)
+            {
+                return;
+            }
+
+            _stateVersion.OnValueChanged += OnNetworkStateVersionChanged;
+            _currentPlayerId.OnValueChanged += OnNetworkStateValueChanged;
+            _currentRound.OnValueChanged += OnNetworkStateValueChanged;
+            _phase.OnValueChanged += OnNetworkStateValueChanged;
+            _roundRevision.OnValueChanged += OnNetworkStateValueChanged;
+            _isGameOver.OnValueChanged += OnNetworkStateValueChanged;
+            _wasSurrendered.OnValueChanged += OnNetworkStateValueChanged;
+            _surrenderingPlayerId.OnValueChanged += OnNetworkStateValueChanged;
+            _winningPlayerId.OnValueChanged += OnNetworkStateValueChanged;
+
+            _placedPieceMeta.OnListChanged += OnNetworkListChanged;
+            _placedPieceCells.OnListChanged += OnNetworkListChanged;
+            _inventoryEntries.OnListChanged += OnNetworkListChanged;
+            _territoryCells.OnListChanged += OnNetworkListChanged;
+            _playerScores.OnListChanged += OnNetworkListChanged;
+            _playerFinished.OnListChanged += OnNetworkListChanged;
+            _authPlayerMap.OnListChanged += OnAuthMapChanged;
+
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.SceneManager != null)
+            {
+                NetworkManager.Singleton.SceneManager.OnSynchronize += OnClientSynchronized;
+            }
+            _networkSubscribed = true;
+        }
+
+        private void UnsubscribeFromNetworkState()
+        {
+            if (!_networkSubscribed)
+            {
+                return;
+            }
+
+            _stateVersion.OnValueChanged -= OnNetworkStateVersionChanged;
+            _currentPlayerId.OnValueChanged -= OnNetworkStateValueChanged;
+            _currentRound.OnValueChanged -= OnNetworkStateValueChanged;
+            _phase.OnValueChanged -= OnNetworkStateValueChanged;
+            _roundRevision.OnValueChanged -= OnNetworkStateValueChanged;
+            _isGameOver.OnValueChanged -= OnNetworkStateValueChanged;
+            _wasSurrendered.OnValueChanged -= OnNetworkStateValueChanged;
+            _surrenderingPlayerId.OnValueChanged -= OnNetworkStateValueChanged;
+            _winningPlayerId.OnValueChanged -= OnNetworkStateValueChanged;
+
+            _placedPieceMeta.OnListChanged -= OnNetworkListChanged;
+            _placedPieceCells.OnListChanged -= OnNetworkListChanged;
+            _inventoryEntries.OnListChanged -= OnNetworkListChanged;
+            _territoryCells.OnListChanged -= OnNetworkListChanged;
+            _playerScores.OnListChanged -= OnNetworkListChanged;
+            _playerFinished.OnListChanged -= OnNetworkListChanged;
+            _authPlayerMap.OnListChanged -= OnAuthMapChanged;
+
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.SceneManager != null)
+            {
+                NetworkManager.Singleton.SceneManager.OnSynchronize -= OnClientSynchronized;
+            }
+            _networkSubscribed = false;
+        }
+
+        private void OnNetworkStateVersionChanged(int previous, int current)
+        {
+            ApplyNetworkStateToSession();
+        }
+
+        private void OnNetworkStateValueChanged<T>(T previous, T current) where T : struct
+        {
+            ApplyNetworkStateToSession();
+        }
+
+        private void OnNetworkListChanged<T>(NetworkListEvent<T> changeEvent) where T : unmanaged, IEquatable<T>
+        {
+            ApplyNetworkStateToSession();
+        }
+
+        private void OnAuthMapChanged(NetworkListEvent<AuthPlayerNet> changeEvent)
+        {
+            UpdateLocalPlayerIdFromAuthMap();
+        }
+
+        private void OnClientSynchronized(ulong clientId)
+        {
+            if (NetworkManager.Singleton == null)
+            {
+                return;
+            }
+
+            if (clientId != NetworkManager.Singleton.LocalClientId)
+            {
+                return;
+            }
+
+            ApplyNetworkStateToSession();
+        }
+
+        private System.Collections.IEnumerator DeferredApplyNetworkState()
+        {
+            yield return null;
+            ApplyNetworkStateToSession();
+        }
+
+        private void SyncStateToNetwork()
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            if (_session == null)
+            {
+                return;
+            }
+
+            InitializeNetworkLists();
+            var snapshot = _session.BuildSnapshot();
+            Debug.Log($"[NetState] SyncStateToNetwork placed={snapshot.PlacedPieces?.Count ?? 0} phase={(int)snapshot.Phase} round={snapshot.CurrentRound} currentPlayer={snapshot.CurrentPlayerId}");
+
+            _currentPlayerId.Value = snapshot.CurrentPlayerId;
+            _currentRound.Value = snapshot.CurrentRound;
+            _phase.Value = (int)snapshot.Phase;
+            _roundRevision.Value = snapshot.RoundRevision;
+            _isGameOver.Value = snapshot.IsGameOver;
+            _wasSurrendered.Value = snapshot.WasSurrendered;
+            _surrenderingPlayerId.Value = snapshot.SurrenderingPlayerId;
+            _winningPlayerId.Value = snapshot.WinningPlayerId;
+
+            _placedPieceMeta.Clear();
+            _placedPieceCells.Clear();
+            if (snapshot.PlacedPieces != null)
+            {
+                foreach (var piece in snapshot.PlacedPieces)
+                {
+                    if (piece == null)
+                    {
+                        continue;
+                    }
+
+                    _placedPieceMeta.Add(new PlacedPieceMetaNet
+                    {
+                        InstanceId = piece.InstanceId,
+                        PlayerId = piece.PlayerId,
+                        PieceIdHash = ComputeStableHash(piece.PieceId),
+                        IsCathedral = piece.IsCathedral
+                    });
+
+                    if (piece.Cells != null)
+                    {
+                        foreach (var cell in piece.Cells)
+                        {
+                            _placedPieceCells.Add(new PlacedPieceCellNet
+                            {
+                                InstanceId = piece.InstanceId,
+                                X = cell.X,
+                                Y = cell.Y
+                            });
+                        }
+                    }
+                }
+            }
+
+            _inventoryEntries.Clear();
+            if (snapshot.Inventories != null)
+            {
+                for (var playerId = 0; playerId < snapshot.Inventories.Length; playerId++)
+                {
+                    var inventory = snapshot.Inventories[playerId];
+                    if (inventory == null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var entry in inventory)
+                    {
+                        _inventoryEntries.Add(new InventoryEntryNet
+                        {
+                            PlayerId = playerId,
+                            PieceIdHash = ComputeStableHash(entry.Key),
+                            Count = entry.Value
+                        });
+                    }
+                }
+            }
+
+            _territoryCells.Clear();
+            if (snapshot.ClaimedTerritories != null)
+            {
+                for (var playerId = 0; playerId < snapshot.ClaimedTerritories.Length; playerId++)
+                {
+                    var cells = snapshot.ClaimedTerritories[playerId];
+                    if (cells == null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var cell in cells)
+                    {
+                        _territoryCells.Add(new TerritoryCellNet
+                        {
+                            PlayerId = playerId,
+                            X = cell.X,
+                            Y = cell.Y
+                        });
+                    }
+                }
+            }
+
+            _playerScores.Clear();
+            if (snapshot.TotalScores != null)
+            {
+                for (var playerId = 0; playerId < snapshot.TotalScores.Length; playerId++)
+                {
+                    _playerScores.Add(new PlayerScoreNet
+                    {
+                        PlayerId = playerId,
+                        Score = snapshot.TotalScores[playerId]
+                    });
+                }
+            }
+
+            _playerFinished.Clear();
+            if (snapshot.FinishedThisRound != null)
+            {
+                for (var playerId = 0; playerId < snapshot.FinishedThisRound.Length; playerId++)
+                {
+                    _playerFinished.Add(new PlayerFinishedNet
+                    {
+                        PlayerId = playerId,
+                        Finished = snapshot.FinishedThisRound[playerId]
+                    });
+                }
+            }
+
+            _stateVersion.Value++;
+        }
+
+        private void ApplyNetworkStateToSession()
+        {
+            if (IsServer && !IsClient)
+            {
+                return;
+            }
+
+            InitializeSessionIfNeeded();
+            if (_session == null)
+            {
+                return;
+            }
+
+            var snapshot = BuildSnapshotFromNetwork();
+            var firstCells = snapshot.PlacedPieces != null && snapshot.PlacedPieces.Count > 0
+                ? (snapshot.PlacedPieces[0].Cells != null ? snapshot.PlacedPieces[0].Cells.Count : 0)
+                : 0;
+            var cellsCount = _placedPieceCells != null ? _placedPieceCells.Count : 0;
+            Debug.Log($"[NetState] ApplyNetworkStateToSession placed={snapshot.PlacedPieces?.Count ?? 0} cellsList={cellsCount} firstCells={firstCells} phase={(int)snapshot.Phase} round={snapshot.CurrentRound} currentPlayer={snapshot.CurrentPlayerId}");
+            _session.LoadSnapshot(snapshot);
+            SessionUpdated?.Invoke();
+        }
+
+        private GameSessionSnapshot BuildSnapshotFromNetwork()
+        {
+            var snapshot = new GameSessionSnapshot
+            {
+                CurrentPlayerId = _currentPlayerId.Value,
+                Phase = (GamePhase)_phase.Value,
+                CurrentRound = _currentRound.Value,
+                RoundRevision = _roundRevision.Value,
+                IsGameOver = _isGameOver.Value,
+                WasSurrendered = _wasSurrendered.Value,
+                SurrenderingPlayerId = _surrenderingPlayerId.Value,
+                WinningPlayerId = _winningPlayerId.Value
+            };
+
+            var playerCount = 2;
+            snapshot.Inventories = new Dictionary<string, int>[playerCount];
+            snapshot.ClaimedTerritories = new List<Cell>[playerCount];
+            snapshot.TotalScores = new int[playerCount];
+            snapshot.FinishedThisRound = new bool[playerCount];
+
+            for (var i = 0; i < playerCount; i++)
+            {
+                snapshot.Inventories[i] = new Dictionary<string, int>();
+                snapshot.ClaimedTerritories[i] = new List<Cell>();
+            }
+
+            foreach (var entry in _inventoryEntries)
+            {
+                if (entry.PlayerId < 0 || entry.PlayerId >= playerCount)
+                {
+                    continue;
+                }
+                var pieceId = ResolvePieceId(entry.PieceIdHash);
+                if (!string.IsNullOrWhiteSpace(pieceId))
+                {
+                    snapshot.Inventories[entry.PlayerId][pieceId] = entry.Count;
+                }
+            }
+
+            foreach (var cell in _territoryCells)
+            {
+                if (cell.PlayerId < 0 || cell.PlayerId >= playerCount)
+                {
+                    continue;
+                }
+                snapshot.ClaimedTerritories[cell.PlayerId].Add(new Cell(cell.X, cell.Y));
+            }
+
+            foreach (var score in _playerScores)
+            {
+                if (score.PlayerId < 0 || score.PlayerId >= playerCount)
+                {
+                    continue;
+                }
+                snapshot.TotalScores[score.PlayerId] = score.Score;
+            }
+
+            foreach (var finished in _playerFinished)
+            {
+                if (finished.PlayerId < 0 || finished.PlayerId >= playerCount)
+                {
+                    continue;
+                }
+                snapshot.FinishedThisRound[finished.PlayerId] = finished.Finished;
+            }
+
+            var pieceMap = new Dictionary<int, PlacedPieceSnapshot>();
+            foreach (var piece in _placedPieceMeta)
+            {
+                pieceMap[piece.InstanceId] = new PlacedPieceSnapshot
+                {
+                    InstanceId = piece.InstanceId,
+                    PlayerId = piece.PlayerId,
+                    PieceId = ResolvePieceId(piece.PieceIdHash),
+                    IsCathedral = piece.IsCathedral,
+                    Cells = new List<Cell>()
+                };
+            }
+
+            foreach (var cell in _placedPieceCells)
+            {
+                if (!pieceMap.TryGetValue(cell.InstanceId, out var piece))
+                {
+                    continue;
+                }
+                piece.Cells.Add(new Cell(cell.X, cell.Y));
+            }
+
+            snapshot.PlacedPieces = new List<PlacedPieceSnapshot>(pieceMap.Values);
+            return snapshot;
         }
 
         private static PlayerInventory[] BuildInventories(PieceSetSO playerOneSet, PieceSetSO playerTwoSet)
@@ -894,6 +1414,93 @@ namespace Peribind.Unity.Networking
             return lookup;
         }
 
+        private static Dictionary<int, string> BuildPieceHashLookup(GameConfigSO config)
+        {
+            var lookup = new Dictionary<int, string>();
+            if (config == null)
+            {
+                return lookup;
+            }
+
+            AddPieceHashes(lookup, config.PlayerOnePieceSet);
+            AddPieceHashes(lookup, config.PlayerTwoPieceSet);
+
+            if (config.CathedralPiece != null)
+            {
+                var hash = ComputeStableHash(config.CathedralPiece.Id);
+                if (!lookup.ContainsKey(hash))
+                {
+                    lookup[hash] = config.CathedralPiece.Id;
+                }
+            }
+
+            return lookup;
+        }
+
+        private static void AddPieceHashes(Dictionary<int, string> lookup, PieceSetSO set)
+        {
+            if (set == null)
+            {
+                return;
+            }
+
+            foreach (var entry in set.Entries)
+            {
+                if (entry.piece == null)
+                {
+                    continue;
+                }
+
+                var hash = ComputeStableHash(entry.piece.Id);
+                if (!lookup.ContainsKey(hash))
+                {
+                    lookup[hash] = entry.piece.Id;
+                }
+            }
+        }
+
+        private static int ComputeStableHash(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return 0;
+            }
+
+            unchecked
+            {
+                var hash = (int)2166136261;
+                for (var i = 0; i < value.Length; i++)
+                {
+                    hash ^= value[i];
+                    hash *= 16777619;
+                }
+                return hash;
+            }
+        }
+
+        private string ResolvePieceId(int hash)
+        {
+            if (hash == 0)
+            {
+                return string.Empty;
+            }
+
+            if (_pieceIdByHash == null || _pieceIdByHash.Count == 0)
+            {
+                if (gameConfig != null)
+                {
+                    _pieceIdByHash = BuildPieceHashLookup(gameConfig);
+                }
+            }
+
+            if (_pieceIdByHash != null && _pieceIdByHash.TryGetValue(hash, out var id))
+            {
+                return id;
+            }
+
+            return string.Empty;
+        }
+
         private static void AddPieces(Dictionary<string, PieceDefinitionSO> lookup, PieceSetSO set)
         {
             if (set == null)
@@ -915,285 +1522,140 @@ namespace Peribind.Unity.Networking
             }
         }
 
-        private static byte[] SerializeSnapshot(GameSessionSnapshot snapshot)
+        private struct PlacedPieceMetaNet : INetworkSerializable, IEquatable<PlacedPieceMetaNet>
         {
-            using var stream = new MemoryStream();
-            using var writer = new BinaryWriter(stream);
+            public int InstanceId;
+            public int PlayerId;
+            public int PieceIdHash;
+            public bool IsCathedral;
 
-            writer.Write(2); // version
-            writer.Write(snapshot.CurrentPlayerId);
-            writer.Write((int)snapshot.Phase);
-            writer.Write(snapshot.CurrentRound);
-            writer.Write(snapshot.RoundRevision);
-            writer.Write(snapshot.IsGameOver);
-            writer.Write(snapshot.WasSurrendered);
-            writer.Write(snapshot.SurrenderingPlayerId);
-            writer.Write(snapshot.WinningPlayerId);
-
-            WriteIntArray(writer, snapshot.TotalScores);
-            WriteBoolArray(writer, snapshot.FinishedThisRound);
-            WriteInventories(writer, snapshot.Inventories);
-            WritePlacedPieces(writer, snapshot.PlacedPieces);
-            WriteTerritories(writer, snapshot.ClaimedTerritories);
-
-            return stream.ToArray();
-        }
-
-        private static GameSessionSnapshot DeserializeSnapshot(byte[] payload)
-        {
-            using var stream = new MemoryStream(payload);
-            using var reader = new BinaryReader(stream);
-
-            var version = reader.ReadInt32();
-            if (version != 1 && version != 2)
+            public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
             {
-                return null;
+                serializer.SerializeValue(ref InstanceId);
+                serializer.SerializeValue(ref PlayerId);
+                serializer.SerializeValue(ref PieceIdHash);
+                serializer.SerializeValue(ref IsCathedral);
             }
 
-            var snapshot = new GameSessionSnapshot
+            public bool Equals(PlacedPieceMetaNet other)
             {
-                CurrentPlayerId = reader.ReadInt32(),
-                Phase = (GamePhase)reader.ReadInt32(),
-                CurrentRound = reader.ReadInt32(),
-                RoundRevision = reader.ReadInt32(),
-                IsGameOver = reader.ReadBoolean()
-            };
-
-            if (version >= 2)
-            {
-                snapshot.WasSurrendered = reader.ReadBoolean();
-                snapshot.SurrenderingPlayerId = reader.ReadInt32();
-                snapshot.WinningPlayerId = reader.ReadInt32();
-            }
-            else
-            {
-                snapshot.WasSurrendered = false;
-                snapshot.SurrenderingPlayerId = -1;
-                snapshot.WinningPlayerId = -1;
-            }
-
-            snapshot.TotalScores = ReadIntArray(reader);
-            snapshot.FinishedThisRound = ReadBoolArray(reader);
-            snapshot.Inventories = ReadInventories(reader);
-            snapshot.PlacedPieces = ReadPlacedPieces(reader);
-            snapshot.ClaimedTerritories = ReadTerritories(reader);
-
-            return snapshot;
-        }
-
-        private static void WriteIntArray(BinaryWriter writer, int[] values)
-        {
-            if (values == null)
-            {
-                writer.Write(0);
-                return;
-            }
-
-            writer.Write(values.Length);
-            for (var i = 0; i < values.Length; i++)
-            {
-                writer.Write(values[i]);
+                return InstanceId == other.InstanceId &&
+                       PlayerId == other.PlayerId &&
+                       PieceIdHash == other.PieceIdHash &&
+                       IsCathedral == other.IsCathedral;
             }
         }
 
-        private static int[] ReadIntArray(BinaryReader reader)
+        private struct PlacedPieceCellNet : INetworkSerializable, IEquatable<PlacedPieceCellNet>
         {
-            var length = reader.ReadInt32();
-            var values = new int[length];
-            for (var i = 0; i < length; i++)
-            {
-                values[i] = reader.ReadInt32();
-            }
-            return values;
-        }
+            public int InstanceId;
+            public int X;
+            public int Y;
 
-        private static void WriteBoolArray(BinaryWriter writer, bool[] values)
-        {
-            if (values == null)
+            public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
             {
-                writer.Write(0);
-                return;
+                serializer.SerializeValue(ref InstanceId);
+                serializer.SerializeValue(ref X);
+                serializer.SerializeValue(ref Y);
             }
 
-            writer.Write(values.Length);
-            for (var i = 0; i < values.Length; i++)
+            public bool Equals(PlacedPieceCellNet other)
             {
-                writer.Write(values[i]);
+                return InstanceId == other.InstanceId && X == other.X && Y == other.Y;
             }
         }
 
-        private static bool[] ReadBoolArray(BinaryReader reader)
+        private struct InventoryEntryNet : INetworkSerializable, IEquatable<InventoryEntryNet>
         {
-            var length = reader.ReadInt32();
-            var values = new bool[length];
-            for (var i = 0; i < length; i++)
-            {
-                values[i] = reader.ReadBoolean();
-            }
-            return values;
-        }
+            public int PlayerId;
+            public int PieceIdHash;
+            public int Count;
 
-        private static void WriteInventories(BinaryWriter writer, Dictionary<string, int>[] inventories)
-        {
-            if (inventories == null)
+            public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
             {
-                writer.Write(0);
-                return;
+                serializer.SerializeValue(ref PlayerId);
+                serializer.SerializeValue(ref PieceIdHash);
+                serializer.SerializeValue(ref Count);
             }
 
-            writer.Write(inventories.Length);
-            for (var i = 0; i < inventories.Length; i++)
+            public bool Equals(InventoryEntryNet other)
             {
-                var inventory = inventories[i];
-                if (inventory == null)
-                {
-                    writer.Write(0);
-                    continue;
-                }
-
-                writer.Write(inventory.Count);
-                foreach (var pair in inventory)
-                {
-                    writer.Write(pair.Key ?? string.Empty);
-                    writer.Write(pair.Value);
-                }
+                return PlayerId == other.PlayerId &&
+                       PieceIdHash == other.PieceIdHash &&
+                       Count == other.Count;
             }
         }
 
-        private static Dictionary<string, int>[] ReadInventories(BinaryReader reader)
+        private struct TerritoryCellNet : INetworkSerializable, IEquatable<TerritoryCellNet>
         {
-            var count = reader.ReadInt32();
-            var inventories = new Dictionary<string, int>[count];
-            for (var i = 0; i < count; i++)
-            {
-                var entryCount = reader.ReadInt32();
-                var dict = new Dictionary<string, int>();
-                for (var j = 0; j < entryCount; j++)
-                {
-                    var key = reader.ReadString();
-                    var value = reader.ReadInt32();
-                    dict[key] = value;
-                }
-                inventories[i] = dict;
-            }
-            return inventories;
-        }
+            public int PlayerId;
+            public int X;
+            public int Y;
 
-        private static void WritePlacedPieces(BinaryWriter writer, List<PlacedPieceSnapshot> pieces)
-        {
-            if (pieces == null)
+            public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
             {
-                writer.Write(0);
-                return;
+                serializer.SerializeValue(ref PlayerId);
+                serializer.SerializeValue(ref X);
+                serializer.SerializeValue(ref Y);
             }
 
-            writer.Write(pieces.Count);
-            foreach (var piece in pieces)
+            public bool Equals(TerritoryCellNet other)
             {
-                writer.Write(piece.InstanceId);
-                writer.Write(piece.PlayerId);
-                writer.Write(piece.PieceId ?? string.Empty);
-                writer.Write(piece.IsCathedral);
-
-                var cells = piece.Cells ?? new List<Cell>();
-                writer.Write(cells.Count);
-                foreach (var cell in cells)
-                {
-                    writer.Write(cell.X);
-                    writer.Write(cell.Y);
-                }
+                return PlayerId == other.PlayerId && X == other.X && Y == other.Y;
             }
         }
 
-        private static List<PlacedPieceSnapshot> ReadPlacedPieces(BinaryReader reader)
+        private struct PlayerScoreNet : INetworkSerializable, IEquatable<PlayerScoreNet>
         {
-            var count = reader.ReadInt32();
-            var pieces = new List<PlacedPieceSnapshot>(count);
-            for (var i = 0; i < count; i++)
+            public int PlayerId;
+            public int Score;
+
+            public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
             {
-                var snapshot = new PlacedPieceSnapshot
-                {
-                    InstanceId = reader.ReadInt32(),
-                    PlayerId = reader.ReadInt32(),
-                    PieceId = reader.ReadString(),
-                    IsCathedral = reader.ReadBoolean()
-                };
-
-                var cellCount = reader.ReadInt32();
-                var cells = new List<Cell>(cellCount);
-                for (var c = 0; c < cellCount; c++)
-                {
-                    var x = reader.ReadInt32();
-                    var y = reader.ReadInt32();
-                    cells.Add(new Cell(x, y));
-                }
-
-                snapshot.Cells = cells;
-                pieces.Add(snapshot);
+                serializer.SerializeValue(ref PlayerId);
+                serializer.SerializeValue(ref Score);
             }
 
-            return pieces;
-        }
-
-        private static void WriteTerritories(BinaryWriter writer, List<Cell>[] territories)
-        {
-            if (territories == null)
+            public bool Equals(PlayerScoreNet other)
             {
-                writer.Write(0);
-                return;
-            }
-
-            writer.Write(territories.Length);
-            for (var i = 0; i < territories.Length; i++)
-            {
-                var cells = territories[i] ?? new List<Cell>();
-                writer.Write(cells.Count);
-                foreach (var cell in cells)
-                {
-                    writer.Write(cell.X);
-                    writer.Write(cell.Y);
-                }
+                return PlayerId == other.PlayerId && Score == other.Score;
             }
         }
 
-        private static List<Cell>[] ReadTerritories(BinaryReader reader)
+        private struct PlayerFinishedNet : INetworkSerializable, IEquatable<PlayerFinishedNet>
         {
-            var count = reader.ReadInt32();
-            var territories = new List<Cell>[count];
-            for (var i = 0; i < count; i++)
+            public int PlayerId;
+            public bool Finished;
+
+            public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
             {
-                var cellCount = reader.ReadInt32();
-                var cells = new List<Cell>(cellCount);
-                for (var c = 0; c < cellCount; c++)
-                {
-                    var x = reader.ReadInt32();
-                    var y = reader.ReadInt32();
-                    cells.Add(new Cell(x, y));
-                }
-                territories[i] = cells;
+                serializer.SerializeValue(ref PlayerId);
+                serializer.SerializeValue(ref Finished);
             }
 
-            return territories;
+            public bool Equals(PlayerFinishedNet other)
+            {
+                return PlayerId == other.PlayerId && Finished == other.Finished;
+            }
         }
 
-        private async System.Threading.Tasks.Task TryRemoveSessionPlayerAsync(string authId)
+        private struct AuthPlayerNet : INetworkSerializable, IEquatable<AuthPlayerNet>
         {
-            if (!IsServer || string.IsNullOrWhiteSpace(authId))
+            public int AuthHash;
+            public int PlayerId;
+
+            public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
             {
-                return;
+                serializer.SerializeValue(ref AuthHash);
+                serializer.SerializeValue(ref PlayerId);
             }
 
-            try
+            public bool Equals(AuthPlayerNet other)
             {
-                if (sessionController != null)
-                {
-                    await sessionController.RemovePlayerAsync(authId);
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"Failed to remove player '{authId}' from session: {ex.Message}");
+                return AuthHash == other.AuthHash && PlayerId == other.PlayerId;
             }
         }
+
+        // Session removal hooks removed (direct-connection flow).
     }
 }

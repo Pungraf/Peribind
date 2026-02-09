@@ -11,6 +11,7 @@ public static class BuildClientServer
 
     private static readonly string[] ClientScenes =
     {
+        "Assets/Scenes/LoginScene.unity",
         "Assets/Scenes/StarterScene.unity",
         "Assets/Scenes/LobbyScene.unity",
         "Assets/Scenes/GameScene.unity"
@@ -43,6 +44,7 @@ public static class BuildClientServer
         });
 
         LogResult(report, "Client");
+        WriteRunWithLogScript(output, "Client");
     }
 
     [MenuItem("Build/Build Server")]
@@ -71,6 +73,7 @@ public static class BuildClientServer
 
         var report = BuildPipeline.BuildPlayer(options);
         LogResult(report, "Server");
+        WriteRunWithLogScript(output, "Server");
     }
 
     [MenuItem("Build/Build Client + Server")]
@@ -102,5 +105,25 @@ public static class BuildClientServer
         {
             Debug.LogError($"[Build] {label} build failed: {report.summary.result}");
         }
+    }
+
+    private static void WriteRunWithLogScript(string outputPath, string label)
+    {
+        if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.StandaloneWindows64)
+        {
+            return;
+        }
+
+        var exeName = Path.GetFileName(outputPath);
+        var exeDir = Path.GetDirectoryName(outputPath) ?? ".";
+        var scriptPath = Path.Combine(exeDir, $"Run{label}WithLog.bat");
+        var logFileName = $"{label}.log";
+
+        var contents = "@echo off\r\n" +
+                       "setlocal\r\n" +
+                       $"\"%~dp0{exeName}\" -logFile \"%~dp0{logFileName}\"\r\n" +
+                       "endlocal\r\n";
+
+        File.WriteAllText(scriptPath, contents);
     }
 }
