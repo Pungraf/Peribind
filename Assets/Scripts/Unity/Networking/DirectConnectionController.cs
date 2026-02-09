@@ -1,5 +1,6 @@
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
+using System.Text;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -27,6 +28,9 @@ namespace Peribind.Unity.Networking
             }
 
             transport.SetConnectionData("0.0.0.0", port, "0.0.0.0");
+
+            NetworkGameController.ConfigureConnectionApproval(manager);
+            manager.NetworkConfig.ConnectionApproval = true;
 
             if (manager.IsListening)
             {
@@ -72,6 +76,15 @@ namespace Peribind.Unity.Networking
                 return false;
             }
 
+            var identityProvider = FindObjectOfType<PlayerIdentityProvider>(true);
+            if (identityProvider == null || string.IsNullOrWhiteSpace(identityProvider.PlayerId))
+            {
+                Debug.LogWarning("[DirectConnection] StartClient blocked: missing credentials.");
+                return false;
+            }
+
+            manager.NetworkConfig.ConnectionApproval = true;
+            manager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(identityProvider.PlayerId);
             transport.SetConnectionData(address, port);
             var started = manager.StartClient();
             Debug.Log($"[DirectConnection] NetworkManager.StartClient returned {started}.");
