@@ -15,6 +15,10 @@ namespace Peribind.Unity.Networking
         [SerializeField] private UgsBootstrap ugsBootstrap;
         [SerializeField] private float heartbeatIntervalSeconds = 15f;
         [SerializeField] private float lobbyRefreshIntervalSeconds = 8f;
+        [SerializeField] private int writeRateLimitRetryCount = 4;
+        [SerializeField] private float writeRateLimitRetryDelaySeconds = 1.0f;
+        [SerializeField] private int queryRetryCount = 1;
+        [SerializeField] private float queryRetryDelaySeconds = 1.0f;
 
         public Lobby CurrentLobby { get; private set; }
         public event Action<Lobby> LobbyUpdated;
@@ -211,41 +215,75 @@ namespace Peribind.Unity.Networking
                 return new List<Lobby>();
             }
 
-            try
+            var attempts = Mathf.Max(1, queryRetryCount + 1);
+            for (var attempt = 1; attempt <= attempts; attempt++)
             {
-                var filters = new List<QueryFilter>();
-
-                if (!string.IsNullOrWhiteSpace(map))
+                try
                 {
-                    filters.Add(new QueryFilter(QueryFilter.FieldOptions.S1, map, QueryFilter.OpOptions.EQ));
+                    var filters = new List<QueryFilter>();
+
+                    if (!string.IsNullOrWhiteSpace(map))
+                    {
+                        filters.Add(new QueryFilter(QueryFilter.FieldOptions.S1, map, QueryFilter.OpOptions.EQ));
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(mode))
+                    {
+                        filters.Add(new QueryFilter(QueryFilter.FieldOptions.S2, mode, QueryFilter.OpOptions.EQ));
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(region))
+                    {
+                        filters.Add(new QueryFilter(QueryFilter.FieldOptions.S3, region, QueryFilter.OpOptions.EQ));
+                    }
+
+                    var response = await LobbyService.Instance.QueryLobbiesAsync(new QueryLobbiesOptions
+                    {
+                        Filters = filters,
+                        Count = 25
+                    });
+
+                    var results = response.Results ?? new List<Lobby>();
+                    LobbiesQueried?.Invoke(results);
+                    return results;
                 }
-
-                if (!string.IsNullOrWhiteSpace(mode))
+                catch (LobbyServiceException ex) when (ex.Reason == LobbyExceptionReason.RateLimited)
                 {
-                    filters.Add(new QueryFilter(QueryFilter.FieldOptions.S2, mode, QueryFilter.OpOptions.EQ));
+                    if (attempt >= attempts)
+                    {
+                        Debug.LogWarning("[Lobby] Query rate-limited.");
+                        return new List<Lobby>();
+                    }
+
+                    var wait = Mathf.Max(0.2f, queryRetryDelaySeconds) * attempt;
+                    Debug.LogWarning($"[Lobby] Query rate-limited, retrying in {wait:0.0}s (attempt {attempt}/{attempts}).");
+                    await Task.Delay(TimeSpan.FromSeconds(wait));
                 }
-
-                if (!string.IsNullOrWhiteSpace(region))
+                catch (LobbyServiceException ex)
                 {
-                    filters.Add(new QueryFilter(QueryFilter.FieldOptions.S3, region, QueryFilter.OpOptions.EQ));
+                    var transient = ex.Message != null &&
+                                    ex.Message.IndexOf("Internal Server Error", StringComparison.OrdinalIgnoreCase) >= 0;
+                    if (transient && attempt < attempts)
+                    {
+                        var wait = Mathf.Max(0.2f, queryRetryDelaySeconds) * attempt;
+                        Debug.LogWarning($"[Lobby] Query transient backend error ({ex.Reason}), retrying in {wait:0.0}s (attempt {attempt}/{attempts}).");
+                        await Task.Delay(TimeSpan.FromSeconds(wait));
+                        continue;
+                    }
+
+                    LobbyError?.Invoke(ex.Message);
+                    Debug.LogWarning($"[Lobby] Query failed ({ex.Reason}): {ex.Message}");
+                    return new List<Lobby>();
                 }
-
-                var response = await LobbyService.Instance.QueryLobbiesAsync(new QueryLobbiesOptions
+                catch (Exception ex)
                 {
-                    Filters = filters,
-                    Count = 25
-                });
-
-                var results = response.Results ?? new List<Lobby>();
-                LobbiesQueried?.Invoke(results);
-                return results;
+                    LobbyError?.Invoke(ex.Message);
+                    Debug.LogWarning($"[Lobby] Query failed: {ex.Message}");
+                    return new List<Lobby>();
+                }
             }
-            catch (Exception ex)
-            {
-                LobbyError?.Invoke(ex.Message);
-                Debug.LogWarning($"[Lobby] Query failed: {ex.Message}");
-                return new List<Lobby>();
-            }
+
+            return new List<Lobby>();
         }
 
         public async Task LeaveLobbyAsync()
@@ -287,30 +325,28 @@ namespace Peribind.Unity.Networking
                 return null;
             }
 
-            try
+            var data = new Dictionary<string, PlayerDataObject>
             {
-                var data = new Dictionary<string, PlayerDataObject>
-                {
-                    ["ready"] = new PlayerDataObject(PlayerDataObject.VisibilityOptions.Member, isReady ? "1" : "0")
-                };
+                ["ready"] = new PlayerDataObject(PlayerDataObject.VisibilityOptions.Member, isReady ? "1" : "0")
+            };
 
-                CurrentLobby = await LobbyService.Instance.UpdatePlayerAsync(
+            var result = await ExecuteLobbyWriteWithRetryAsync(
+                () => LobbyService.Instance.UpdatePlayerAsync(
                     CurrentLobby.Id,
                     AuthenticationService.Instance.PlayerId,
                     new UpdatePlayerOptions
                     {
                         Data = data
-                    });
+                    }),
+                "Set ready");
 
-                LobbyUpdated?.Invoke(CurrentLobby);
-                return CurrentLobby;
-            }
-            catch (Exception ex)
+            if (result != null)
             {
-                LobbyError?.Invoke(ex.Message);
-                Debug.LogWarning($"[Lobby] Set ready failed: {ex.Message}");
-                return null;
+                CurrentLobby = result;
+                LobbyUpdated?.Invoke(CurrentLobby);
             }
+
+            return result;
         }
 
         public async Task<Lobby> SetServerInfoAsync(string serverIp, int serverPort, string matchId)
@@ -325,29 +361,27 @@ namespace Peribind.Unity.Networking
                 return null;
             }
 
-            try
+            var data = new Dictionary<string, DataObject>
             {
-                var data = new Dictionary<string, DataObject>
-                {
-                    ["server_ip"] = new DataObject(DataObject.VisibilityOptions.Public, serverIp ?? string.Empty),
-                    ["server_port"] = new DataObject(DataObject.VisibilityOptions.Public, serverPort.ToString()),
-                    ["match_id"] = new DataObject(DataObject.VisibilityOptions.Public, matchId ?? string.Empty)
-                };
+                ["server_ip"] = new DataObject(DataObject.VisibilityOptions.Public, serverIp ?? string.Empty),
+                ["server_port"] = new DataObject(DataObject.VisibilityOptions.Public, serverPort.ToString()),
+                ["match_id"] = new DataObject(DataObject.VisibilityOptions.Public, matchId ?? string.Empty)
+            };
 
-                CurrentLobby = await LobbyService.Instance.UpdateLobbyAsync(CurrentLobby.Id, new UpdateLobbyOptions
+            var result = await ExecuteLobbyWriteWithRetryAsync(
+                () => LobbyService.Instance.UpdateLobbyAsync(CurrentLobby.Id, new UpdateLobbyOptions
                 {
                     Data = data
-                });
+                }),
+                "Set server info");
 
-                LobbyUpdated?.Invoke(CurrentLobby);
-                return CurrentLobby;
-            }
-            catch (Exception ex)
+            if (result != null)
             {
-                LobbyError?.Invoke(ex.Message);
-                Debug.LogWarning($"[Lobby] Set server info failed: {ex.Message}");
-                return null;
+                CurrentLobby = result;
+                LobbyUpdated?.Invoke(CurrentLobby);
             }
+
+            return result;
         }
 
         private Player BuildPlayer()
@@ -476,6 +510,41 @@ namespace Peribind.Unity.Networking
             }
 
             return true;
+        }
+
+        private async Task<Lobby> ExecuteLobbyWriteWithRetryAsync(Func<Task<Lobby>> action, string operationName)
+        {
+            var attempts = Mathf.Max(1, writeRateLimitRetryCount + 1);
+            var delaySeconds = Mathf.Max(0.1f, writeRateLimitRetryDelaySeconds);
+
+            for (var attempt = 1; attempt <= attempts; attempt++)
+            {
+                try
+                {
+                    return await action();
+                }
+                catch (LobbyServiceException ex) when (ex.Reason == LobbyExceptionReason.RateLimited)
+                {
+                    if (attempt >= attempts)
+                    {
+                        LobbyError?.Invoke("Lobby is busy. Please retry.");
+                        Debug.LogWarning($"[Lobby] {operationName} rate-limited after {attempt} attempts.");
+                        return null;
+                    }
+
+                    var waitSeconds = delaySeconds * attempt;
+                    Debug.LogWarning($"[Lobby] {operationName} rate-limited, retrying in {waitSeconds:0.0}s (attempt {attempt}/{attempts}).");
+                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds));
+                }
+                catch (Exception ex)
+                {
+                    LobbyError?.Invoke(ex.Message);
+                    Debug.LogWarning($"[Lobby] {operationName} failed: {ex.Message}");
+                    return null;
+                }
+            }
+
+            return null;
         }
     }
 }

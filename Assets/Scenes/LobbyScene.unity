@@ -1422,10 +1422,10 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 24
+  m_fontSize: 26.85
   m_fontSizeBase: 24
   m_fontWeight: 400
-  m_enableAutoSizing: 0
+  m_enableAutoSizing: 1
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
@@ -4909,6 +4909,10 @@ MonoBehaviour:
   ugsBootstrap: {fileID: 1707537522}
   heartbeatIntervalSeconds: 15
   lobbyRefreshIntervalSeconds: 5
+  writeRateLimitRetryCount: 4
+  writeRateLimitRetryDelaySeconds: 1
+  queryRetryCount: 1
+  queryRetryDelaySeconds: 1
 --- !u!114 &1707537522
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4950,6 +4954,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Peribind::Peribind.Unity.Networking.MatchRegistryClient
   baseUrl: http://209.38.222.103:8080
+  allowEnvironmentOverride: 1
+  environmentBaseUrlKey: PERIBIND_MATCH_REGISTRY_URL
 --- !u!1 &1715048586
 GameObject:
   m_ObjectHideFlags: 0
@@ -6129,6 +6135,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Peribind::Peribind.Unity.Networking.DirectConnectionController
   port: 7777
   gameSceneName: GameScene
+  serverPortEnvironmentKey: PERIBIND_SERVER_PORT
+  serverPortArgumentName: -port
 --- !u!114 &2098417159
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6157,11 +6165,10 @@ MonoBehaviour:
   readyButton: {fileID: 152288590}
   readyButtonText: {fileID: 388712266}
   directConnection: {fileID: 2098417158}
-  serverIp: 209.38.222.103
-  serverPort: 7777
   matchRegistry: {fileID: 1707537524}
   reconnectButton: {fileID: 376050833}
   matchIdPrefsKey: last_match_id
+  identityProvider: {fileID: 0}
 --- !u!1 &2111716933
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,6 +1,7 @@
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using System.Text;
+using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -10,6 +11,9 @@ namespace Peribind.Unity.Networking
     {
         [SerializeField] private ushort port = 7777;
         [SerializeField] private string gameSceneName = "GameScene";
+        [SerializeField] private string serverPortEnvironmentKey = "PERIBIND_SERVER_PORT";
+        [SerializeField] private string serverPortArgumentName = "-port";
+        private bool _callbacksRegistered;
 
         public bool StartServer()
         {
@@ -20,6 +24,8 @@ namespace Peribind.Unity.Networking
                 return false;
             }
 
+            EnsureNetworkCallbacks(manager);
+
             var transport = manager.GetComponent<UnityTransport>();
             if (transport == null)
             {
@@ -27,10 +33,16 @@ namespace Peribind.Unity.Networking
                 return false;
             }
 
-            transport.SetConnectionData("0.0.0.0", port, "0.0.0.0");
+            var listenPort = ResolveServerPort();
+            transport.SetConnectionData("0.0.0.0", listenPort, "0.0.0.0");
+            Debug.Log($"[DirectConnection] Server listen port: {listenPort}");
 
             NetworkGameController.ConfigureConnectionApproval(manager);
             manager.NetworkConfig.ConnectionApproval = true;
+            if (manager.GetComponent<MatchLifecycleServer>() == null)
+            {
+                manager.gameObject.AddComponent<MatchLifecycleServer>();
+            }
 
             if (manager.IsListening)
             {
@@ -68,6 +80,8 @@ namespace Peribind.Unity.Networking
                 return false;
             }
 
+            EnsureNetworkCallbacks(manager);
+
             var transport = manager.GetComponent<UnityTransport>();
             if (transport == null)
             {
@@ -77,7 +91,9 @@ namespace Peribind.Unity.Networking
 
             if (manager.IsListening || manager.IsClient || manager.IsServer || manager.IsHost)
             {
-                Debug.LogWarning("[DirectConnection] Client start skipped: NetworkManager already active.");
+                Debug.LogWarning(
+                    $"[DirectConnection] Client start skipped: NetworkManager already active " +
+                    $"(IsListening={manager.IsListening}, IsClient={manager.IsClient}, IsServer={manager.IsServer}, IsHost={manager.IsHost}).");
                 return false;
             }
 
@@ -94,6 +110,47 @@ namespace Peribind.Unity.Networking
             var started = manager.StartClient();
             Debug.Log($"[DirectConnection] NetworkManager.StartClient returned {started}.");
             return started;
+        }
+
+        private void EnsureNetworkCallbacks(NetworkManager manager)
+        {
+            if (_callbacksRegistered || manager == null)
+            {
+                return;
+            }
+
+            manager.OnClientConnectedCallback += OnClientConnected;
+            manager.OnClientDisconnectCallback += OnClientDisconnected;
+            _callbacksRegistered = true;
+        }
+
+        private void OnClientConnected(ulong clientId)
+        {
+            var manager = NetworkManager.Singleton;
+            if (manager == null)
+            {
+                return;
+            }
+
+            if (!manager.IsServer && clientId == manager.LocalClientId)
+            {
+                Debug.Log($"[DirectConnection] Client connected to server. LocalClientId={clientId}");
+            }
+        }
+
+        private void OnClientDisconnected(ulong clientId)
+        {
+            var manager = NetworkManager.Singleton;
+            if (manager == null)
+            {
+                return;
+            }
+
+            if (!manager.IsServer && clientId == manager.LocalClientId)
+            {
+                var reason = manager.DisconnectReason;
+                Debug.LogWarning($"[DirectConnection] Client disconnected. Reason='{reason}'");
+            }
         }
 
         private NetworkManager EnsureNetworkManager()
@@ -117,6 +174,31 @@ namespace Peribind.Unity.Networking
             manager.NetworkConfig.NetworkTransport = transport;
             manager.NetworkConfig.EnableSceneManagement = true;
             return manager;
+        }
+
+        private ushort ResolveServerPort()
+        {
+            var fromEnv = Environment.GetEnvironmentVariable(serverPortEnvironmentKey);
+            if (ushort.TryParse(fromEnv, out var envPort) && envPort > 0)
+            {
+                return envPort;
+            }
+
+            var args = Environment.GetCommandLineArgs();
+            for (var i = 0; i < args.Length - 1; i++)
+            {
+                if (!string.Equals(args[i], serverPortArgumentName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (ushort.TryParse(args[i + 1], out var argPort) && argPort > 0)
+                {
+                    return argPort;
+                }
+            }
+
+            return port;
         }
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
@@ -8,6 +7,7 @@ using UnityEngine.UI;
 using Peribind.Unity.Networking;
 using Unity.Services.Lobbies.Models;
 using Unity.Services.Authentication;
+using Unity.Netcode;
 
 namespace Peribind.Unity.UI
 {
@@ -36,8 +36,6 @@ namespace Peribind.Unity.UI
 
         [Header("Server")]
         [SerializeField] private DirectConnectionController directConnection;
-        [SerializeField] private string serverIp = "209.38.222.103";
-        [SerializeField] private int serverPort = 7777;
         [SerializeField] private MatchRegistryClient matchRegistry;
         [SerializeField] private Button reconnectButton;
         [SerializeField] private string matchIdPrefsKey = "last_match_id";
@@ -46,6 +44,11 @@ namespace Peribind.Unity.UI
         private bool _isReady;
         private bool _connecting;
         private bool _isListRefreshInFlight;
+        private bool _isServerAllocationInFlight;
+        private bool _isReadyUpdateInFlight;
+        private string _allocatingLobbyId = string.Empty;
+        private MatchRegistryClient.MatchInfo _pendingAllocation;
+        private string _pendingAllocationLobbyId = string.Empty;
         private int _lastObservedLobbyPlayerCount = -1;
         private float _nextAllowedListRefreshTime;
         private const float ListRefreshCooldownSeconds = 2f;
@@ -89,7 +92,30 @@ namespace Peribind.Unity.UI
 
         private void OnEnable()
         {
+            ResetConnectionStateForLobby();
             _ = RefreshLobbyListAsync(force: true);
+        }
+
+        private void Update()
+        {
+            if (!_connecting)
+            {
+                return;
+            }
+
+            var manager = NetworkManager.Singleton;
+            if (manager == null)
+            {
+                _connecting = false;
+                return;
+            }
+
+            // If client start was initiated but Netcode is no longer in a client/listening state,
+            // clear the local lock so another connect attempt is possible.
+            if (!manager.IsClient && !manager.IsListening && !manager.ShutdownInProgress)
+            {
+                _connecting = false;
+            }
         }
 
         private void OnDestroy()
@@ -117,7 +143,7 @@ namespace Peribind.Unity.UI
                 ? lobbyNameInput.text
                 : "Match";
             await lobbyService.CreateLobbyAsync(name, 2, GetText(mapInput), GetText(modeInput), GetText(regionInput));
-            await RefreshLobbyListAsync(force: true);
+            await RefreshLobbyListAsync();
         }
 
         private async void OnJoinCodeClicked()
@@ -137,15 +163,25 @@ namespace Peribind.Unity.UI
         {
             if (lobbyService == null) return;
             await lobbyService.LeaveLobbyAsync();
-            await RefreshLobbyListAsync(force: true);
+            await RefreshLobbyListAsync();
         }
 
         private async void OnReadyClicked()
         {
             if (lobbyService == null || lobbyService.CurrentLobby == null) return;
+            if (_isReadyUpdateInFlight) return;
+
+            _isReadyUpdateInFlight = true;
             _isReady = !_isReady;
             UpdateReadyButton();
-            await lobbyService.SetPlayerReadyAsync(_isReady);
+            try
+            {
+                await lobbyService.SetPlayerReadyAsync(_isReady);
+            }
+            finally
+            {
+                _isReadyUpdateInFlight = false;
+            }
         }
 
         private async void OnReconnectClicked()
@@ -164,7 +200,17 @@ namespace Peribind.Unity.UI
             }
 
             var info = await matchRegistry.GetMatchAsync(matchId);
-            if (info == null) return;
+            if (info == null)
+            {
+                PlayerPrefs.DeleteKey(key);
+                PlayerPrefs.Save();
+                if (statusText != null)
+                {
+                    statusText.text = "Match expired or unavailable.";
+                }
+
+                return;
+            }
 
             var playerId = AuthenticationService.Instance.PlayerId;
             if (info.players == null || !info.players.Contains(playerId))
@@ -225,6 +271,8 @@ namespace Peribind.Unity.UI
                 }
 
                 _lastObservedLobbyPlayerCount = -1;
+                _pendingAllocation = null;
+                _pendingAllocationLobbyId = string.Empty;
                 return;
             }
 
@@ -233,24 +281,38 @@ namespace Peribind.Unity.UI
                 statusText.text = $"In lobby: {lobby.Name} | {lobby.Players.Count}/{lobby.MaxPlayers} | Code: {lobby.LobbyCode}";
             }
 
+            if (!string.IsNullOrWhiteSpace(_pendingAllocationLobbyId) &&
+                !string.Equals(_pendingAllocationLobbyId, lobby.Id, StringComparison.Ordinal))
+            {
+                _pendingAllocation = null;
+                _pendingAllocationLobbyId = string.Empty;
+            }
+
             UpdateReadyState(lobby);
             TryStartServerIfReady(lobby);
             TryConnectToServer(lobby);
 
-            if (!_connecting)
+            var previousCount = _lastObservedLobbyPlayerCount;
+            var playerCount = lobby.Players != null ? lobby.Players.Count : 0;
+            _lastObservedLobbyPlayerCount = playerCount;
+
+            if (!_connecting && previousCount >= 0 && previousCount != playerCount)
             {
-                var playerCount = lobby.Players != null ? lobby.Players.Count : 0;
-                if (playerCount != _lastObservedLobbyPlayerCount)
-                {
-                    _lastObservedLobbyPlayerCount = playerCount;
-                    _ = RefreshLobbyListAsync();
-                }
+                _ = RefreshLobbyListAsync();
             }
         }
 
         private void OnLobbyError(string message)
         {
             if (statusText == null) return;
+            if (!string.IsNullOrWhiteSpace(message) &&
+                (message.IndexOf("too many", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 message.IndexOf("429", StringComparison.OrdinalIgnoreCase) >= 0))
+            {
+                statusText.text = "Lobby busy, retrying...";
+                return;
+            }
+
             statusText.text = $"Lobby error: {message}";
         }
 
@@ -269,12 +331,12 @@ namespace Peribind.Unity.UI
             if (isMember)
             {
                 await lobbyService.GetLobbyByIdAsync(lobby.Id);
-                await RefreshLobbyListAsync(force: true);
+                await RefreshLobbyListAsync();
                 return;
             }
 
             await lobbyService.JoinLobbyByIdAsync(lobby.Id);
-            await RefreshLobbyListAsync(force: true);
+            await RefreshLobbyListAsync();
         }
 
         private async Task RefreshLobbyListAsync(bool force = false)
@@ -285,6 +347,11 @@ namespace Peribind.Unity.UI
             }
 
             if (_isListRefreshInFlight)
+            {
+                return;
+            }
+
+            if (_connecting)
             {
                 return;
             }
@@ -303,6 +370,26 @@ namespace Peribind.Unity.UI
             finally
             {
                 _isListRefreshInFlight = false;
+            }
+        }
+
+        private void ResetConnectionStateForLobby()
+        {
+            _connecting = false;
+            _isServerAllocationInFlight = false;
+            _isReadyUpdateInFlight = false;
+            _allocatingLobbyId = string.Empty;
+
+            var manager = NetworkManager.Singleton;
+            if (manager == null)
+            {
+                return;
+            }
+
+            if (manager.IsClient || manager.IsServer || manager.IsHost || manager.IsListening)
+            {
+                Debug.Log("[LobbyUgs] Active NetworkManager detected in lobby. Shutting down stale session state.");
+                manager.Shutdown();
             }
         }
 
@@ -347,6 +434,8 @@ namespace Peribind.Unity.UI
             if (lobby.Data != null && lobby.Data.ContainsKey("server_ip"))
             {
                 Debug.Log("[LobbyUgs] Server info already set in lobby data.");
+                _pendingAllocation = null;
+                _pendingAllocationLobbyId = string.Empty;
                 return;
             }
 
@@ -362,10 +451,18 @@ namespace Peribind.Unity.UI
 
             if (allReady)
             {
-                var matchId = Guid.NewGuid().ToString("N");
-                Debug.Log($"[LobbyUgs] All ready. Setting server info. matchId={matchId} ip={serverIp} port={serverPort}");
-                _ = lobbyService.SetServerInfoAsync(serverIp, serverPort, matchId);
-                _ = RegisterMatchAsync(matchId, lobby);
+                if (_pendingAllocation != null && string.Equals(_pendingAllocationLobbyId, lobby.Id, StringComparison.Ordinal))
+                {
+                    _ = PublishPendingServerInfoAsync(lobby);
+                    return;
+                }
+
+                if (_isServerAllocationInFlight && string.Equals(_allocatingLobbyId, lobby.Id, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _ = AllocateAndPublishServerInfoAsync(lobby);
             }
         }
 
@@ -399,24 +496,87 @@ namespace Peribind.Unity.UI
             {
                 lobbyService.PauseLobbyRefresh();
             }
-            directConnection.StartClient(ip, port);
-        }
-
-        private async Task RegisterMatchAsync(string matchId, Lobby lobby)
-        {
-            if (matchRegistry == null || lobby == null) return;
-            if (string.IsNullOrWhiteSpace(matchId)) return;
-
-            var players = new List<string>();
-            if (lobby.Players != null)
+            var started = directConnection.StartClient(ip, port);
+            if (!started)
             {
-                foreach (var player in lobby.Players)
+                _connecting = false;
+                if (statusText != null)
                 {
-                    players.Add(player.Id);
+                    statusText.text = "Failed to start client connection.";
                 }
             }
+        }
 
-            await matchRegistry.RegisterMatchAsync(matchId, serverIp, serverPort, players);
+        private async Task AllocateAndPublishServerInfoAsync(Lobby lobby)
+        {
+            if (lobbyService == null || matchRegistry == null || lobby == null)
+            {
+                return;
+            }
+
+            _isServerAllocationInFlight = true;
+            _allocatingLobbyId = lobby.Id;
+            try
+            {
+                var players = new List<string>();
+                if (lobby.Players != null)
+                {
+                    foreach (var player in lobby.Players)
+                    {
+                        players.Add(player.Id);
+                    }
+                }
+
+                var map = lobby.Data != null && lobby.Data.TryGetValue("map", out var mapObj) ? mapObj.Value : string.Empty;
+                var mode = lobby.Data != null && lobby.Data.TryGetValue("mode", out var modeObj) ? modeObj.Value : string.Empty;
+                var region = lobby.Data != null && lobby.Data.TryGetValue("region", out var regionObj) ? regionObj.Value : string.Empty;
+                var allocation = await matchRegistry.CreateMatchAsync(lobby.Id, players, map, mode, region);
+                if (allocation == null || string.IsNullOrWhiteSpace(allocation.serverIp) || allocation.serverPort <= 0 || string.IsNullOrWhiteSpace(allocation.matchId))
+                {
+                    if (statusText != null)
+                    {
+                        statusText.text = "Server allocation failed.";
+                    }
+                    return;
+                }
+
+                _pendingAllocation = allocation;
+                _pendingAllocationLobbyId = lobby.Id;
+                await PublishPendingServerInfoAsync(lobby);
+            }
+            finally
+            {
+                _isServerAllocationInFlight = false;
+                _allocatingLobbyId = string.Empty;
+            }
+        }
+
+        private async Task PublishPendingServerInfoAsync(Lobby lobby)
+        {
+            if (lobbyService == null || lobby == null || _pendingAllocation == null)
+            {
+                return;
+            }
+
+            if (!string.Equals(_pendingAllocationLobbyId, lobby.Id, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var allocation = _pendingAllocation;
+            Debug.Log($"[LobbyUgs] Publishing server info matchId={allocation.matchId} ip={allocation.serverIp} port={allocation.serverPort}");
+            var updated = await lobbyService.SetServerInfoAsync(allocation.serverIp, allocation.serverPort, allocation.matchId);
+            if (updated == null)
+            {
+                if (statusText != null)
+                {
+                    statusText.text = "Server ready, retrying lobby update...";
+                }
+                return;
+            }
+
+            _pendingAllocation = null;
+            _pendingAllocationLobbyId = string.Empty;
         }
 
         private string GetScopedMatchIdPrefsKey()

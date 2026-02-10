@@ -10,6 +10,57 @@ namespace Peribind.Unity.Networking
     public class MatchRegistryClient : MonoBehaviour
     {
         [SerializeField] private string baseUrl = "http://209.38.222.103:8080";
+        [SerializeField] private bool allowEnvironmentOverride = true;
+        [SerializeField] private string environmentBaseUrlKey = "PERIBIND_MATCH_REGISTRY_URL";
+
+        private void Awake()
+        {
+            if (!allowEnvironmentOverride)
+            {
+                return;
+            }
+
+            var fromEnv = Environment.GetEnvironmentVariable(environmentBaseUrlKey);
+            if (string.IsNullOrWhiteSpace(fromEnv))
+            {
+                return;
+            }
+
+            baseUrl = fromEnv.TrimEnd('/');
+            Debug.Log($"[MatchRegistry] Base URL from env: {baseUrl}");
+        }
+
+        public async Task<MatchInfo> CreateMatchAsync(string lobbyId, List<string> players, string map, string mode, string region)
+        {
+            var payload = new CreateRequest
+            {
+                lobbyId = lobbyId,
+                players = players ?? new List<string>(),
+                map = map ?? string.Empty,
+                mode = mode ?? string.Empty,
+                region = region ?? string.Empty
+            };
+
+            var json = JsonUtility.ToJson(payload);
+            var url = $"{baseUrl}/match/create";
+            using var request = BuildPostRequest(url, json);
+            await request.SendWebRequest();
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogWarning($"[MatchRegistry] Create failed: {request.responseCode} {request.error}");
+                return null;
+            }
+
+            var body = request.downloadHandler.text;
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                Debug.LogWarning("[MatchRegistry] Create returned empty body.");
+                return null;
+            }
+
+            return JsonUtility.FromJson<MatchInfo>(body);
+        }
 
         public async Task<bool> RegisterMatchAsync(string matchId, string serverIp, int serverPort, List<string> players)
         {
@@ -52,11 +103,7 @@ namespace Peribind.Unity.Networking
 
         private static async Task<bool> SendJsonAsync(string url, string json)
         {
-            using var request = new UnityWebRequest(url, "POST");
-            var body = Encoding.UTF8.GetBytes(json);
-            request.uploadHandler = new UploadHandlerRaw(body);
-            request.downloadHandler = new DownloadHandlerBuffer();
-            request.SetRequestHeader("Content-Type", "application/json");
+            using var request = BuildPostRequest(url, json);
 
             await request.SendWebRequest();
 
@@ -67,6 +114,26 @@ namespace Peribind.Unity.Networking
             }
 
             return true;
+        }
+
+        private static UnityWebRequest BuildPostRequest(string url, string json)
+        {
+            var request = new UnityWebRequest(url, "POST");
+            var body = Encoding.UTF8.GetBytes(json);
+            request.uploadHandler = new UploadHandlerRaw(body);
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+            return request;
+        }
+
+        [Serializable]
+        private class CreateRequest
+        {
+            public string lobbyId;
+            public List<string> players;
+            public string map;
+            public string mode;
+            public string region;
         }
 
         [Serializable]
