@@ -16,7 +16,7 @@ public class UgsProfileEditorWindow : EditorWindow
 
     private void OnEnable()
     {
-        _profile = EditorPrefs.GetString(UgsBootstrap.EditorProfilePrefKey, string.Empty);
+        _profile = EditorPrefs.GetString(UgsBootstrap.ProfilePrefKey, string.Empty);
     }
 
     private void OnGUI()
@@ -30,15 +30,15 @@ public class UgsProfileEditorWindow : EditorWindow
         {
             if (GUILayout.Button("Save"))
             {
-                EditorPrefs.SetString(UgsBootstrap.EditorProfilePrefKey, _profile ?? string.Empty);
-                PlayerPrefs.SetString(UgsBootstrap.EditorProfilePrefKey, _profile ?? string.Empty);
+                EditorPrefs.SetString(UgsBootstrap.ProfilePrefKey, _profile ?? string.Empty);
+                PlayerPrefs.SetString(UgsBootstrap.ProfilePrefKey, _profile ?? string.Empty);
                 Debug.Log($"[UGS] Profile override set to '{_profile}'.");
             }
 
             if (GUILayout.Button("Clear"))
             {
-                EditorPrefs.DeleteKey(UgsBootstrap.EditorProfilePrefKey);
-                PlayerPrefs.DeleteKey(UgsBootstrap.EditorProfilePrefKey);
+                EditorPrefs.DeleteKey(UgsBootstrap.ProfilePrefKey);
+                PlayerPrefs.DeleteKey(UgsBootstrap.ProfilePrefKey);
                 _profile = string.Empty;
                 Debug.Log("[UGS] Profile override cleared.");
             }

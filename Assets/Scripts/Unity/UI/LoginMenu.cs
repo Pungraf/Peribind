@@ -64,6 +64,10 @@ namespace Peribind.Unity.UI
             }
 
             identityProvider.SetFromCredentials(login, password);
+            // Keep UGS identity aligned with gameplay identity across reconnects.
+            var profile = UgsBootstrap.BuildProfileFromIdentity(identityProvider.PlayerId);
+            PlayerPrefs.SetString(UgsBootstrap.ProfilePrefKey, profile);
+            PlayerPrefs.Save();
             ClearSelection();
 
             if (!string.IsNullOrWhiteSpace(nextSceneName))

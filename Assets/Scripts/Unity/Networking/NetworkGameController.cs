@@ -483,7 +483,8 @@ namespace Peribind.Unity.Networking
             {
                 if (NetworkManager.Singleton != null && clientId == NetworkManager.Singleton.LocalClientId)
                 {
-                    Debug.LogWarning("[NetworkGameController] Disconnected from server.");
+                    var reason = NetworkManager.Singleton != null ? NetworkManager.Singleton.DisconnectReason : string.Empty;
+                    Debug.LogWarning($"[NetworkGameController] Disconnected from server. Reason='{reason}'");
                     HandleClientDisconnected();
                 }
                 return;
@@ -661,11 +662,15 @@ namespace Peribind.Unity.Networking
             var authId = request.Payload != null && request.Payload.Length > 0
                 ? Encoding.UTF8.GetString(request.Payload)
                 : string.Empty;
+            var authPreview = string.IsNullOrWhiteSpace(authId)
+                ? "<empty>"
+                : (authId.Length <= 8 ? authId : authId.Substring(0, 8));
 
             if (string.IsNullOrWhiteSpace(authId))
             {
                 response.Approved = false;
                 response.Reason = "Missing credentials.";
+                Debug.LogWarning($"[Approval] Rejected client={request.ClientNetworkId} reason='{response.Reason}' auth={authPreview}");
                 return;
             }
 
@@ -673,6 +678,7 @@ namespace Peribind.Unity.Networking
             {
                 response.Approved = false;
                 response.Reason = "Player already connected.";
+                Debug.LogWarning($"[Approval] Rejected client={request.ClientNetworkId} reason='{response.Reason}' auth={authPreview}");
                 return;
             }
 
@@ -681,6 +687,7 @@ namespace Peribind.Unity.Networking
             {
                 response.Approved = false;
                 response.Reason = "Match already started. Rejoin with original credentials.";
+                Debug.LogWarning($"[Approval] Rejected client={request.ClientNetworkId} reason='{response.Reason}' auth={authPreview}");
                 return;
             }
 
@@ -707,6 +714,7 @@ namespace Peribind.Unity.Networking
             response.Approved = true;
             response.CreatePlayerObject = false;
             response.Pending = false;
+            Debug.Log($"[Approval] Approved client={request.ClientNetworkId} auth={authPreview} assigned={assigned}");
         }
 
         private int AssignPlayerId(ulong clientId)

@@ -31,6 +31,8 @@ namespace Peribind.Unity.UI
         [SerializeField] private string surrenderButtonLabel = "Surrender";
         [SerializeField] private string acknowledgeButtonLabel = "OK";
         [SerializeField] private float surrenderExitDelaySeconds = 0.35f;
+        private const string LastMatchIdPrefsKey = "last_match_id";
+        [SerializeField] private PlayerIdentityProvider identityProvider;
 
         private bool _menuOpen;
         private bool _isExiting;
@@ -50,6 +52,10 @@ namespace Peribind.Unity.UI
             if (networkController == null)
             {
                 networkController = FindObjectOfType<NetworkGameController>();
+            }
+            if (identityProvider == null)
+            {
+                identityProvider = FindObjectOfType<PlayerIdentityProvider>(true);
             }
             BindNetworkEventsIfNeeded();
 
@@ -334,6 +340,13 @@ namespace Peribind.Unity.UI
             _awaitingSurrenderAcknowledge = false;
             UpdateExitButtonState();
 
+            if (boardPresenter != null && boardPresenter.IsGameOver)
+            {
+                PlayerPrefs.DeleteKey(GetScopedMatchIdPrefsKey());
+                PlayerPrefs.DeleteKey(LastMatchIdPrefsKey); // Backward compatibility with previously global key.
+                PlayerPrefs.Save();
+            }
+
             if (gameOverPanel != null)
             {
                 gameOverPanel.SetActive(false);
@@ -418,6 +431,23 @@ namespace Peribind.Unity.UI
 
             networkController.SurrenderResolved -= OnSurrenderResolved;
             _networkEventsBound = false;
+        }
+
+        private string GetScopedMatchIdPrefsKey()
+        {
+            if (identityProvider == null)
+            {
+                identityProvider = FindObjectOfType<PlayerIdentityProvider>(true);
+            }
+
+            if (identityProvider == null || string.IsNullOrWhiteSpace(identityProvider.PlayerId))
+            {
+                return LastMatchIdPrefsKey;
+            }
+
+            var playerId = identityProvider.PlayerId;
+            var suffix = playerId.Length <= 16 ? playerId : playerId.Substring(0, 16);
+            return $"{LastMatchIdPrefsKey}_{suffix}";
         }
     }
 }

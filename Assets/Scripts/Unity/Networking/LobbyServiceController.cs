@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.Services.Authentication;
+using Unity.Services.Core;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
 using UnityEngine;
@@ -13,7 +14,7 @@ namespace Peribind.Unity.Networking
     {
         [SerializeField] private UgsBootstrap ugsBootstrap;
         [SerializeField] private float heartbeatIntervalSeconds = 15f;
-        [SerializeField] private float lobbyRefreshIntervalSeconds = 5f;
+        [SerializeField] private float lobbyRefreshIntervalSeconds = 8f;
 
         public Lobby CurrentLobby { get; private set; }
         public event Action<Lobby> LobbyUpdated;
@@ -38,6 +39,11 @@ namespace Peribind.Unity.Networking
 
         public async Task<Lobby> CreateLobbyAsync(string lobbyName, int maxPlayers, string map, string mode, string region)
         {
+            if (!await EnsureLobbyReadyAsync())
+            {
+                return null;
+            }
+
             try
             {
                 var lobbyData = new Dictionary<string, DataObject>
@@ -73,6 +79,11 @@ namespace Peribind.Unity.Networking
 
         public async Task<Lobby> JoinLobbyByCodeAsync(string code)
         {
+            if (!await EnsureLobbyReadyAsync())
+            {
+                return null;
+            }
+
             try
             {
                 var player = BuildPlayer();
@@ -96,6 +107,11 @@ namespace Peribind.Unity.Networking
 
         public async Task<Lobby> JoinLobbyByIdAsync(string lobbyId)
         {
+            if (!await EnsureLobbyReadyAsync())
+            {
+                return null;
+            }
+
             try
             {
                 var player = BuildPlayer();
@@ -117,8 +133,35 @@ namespace Peribind.Unity.Networking
             }
         }
 
+        public async Task<Lobby> GetLobbyByIdAsync(string lobbyId)
+        {
+            if (!await EnsureLobbyReadyAsync())
+            {
+                return null;
+            }
+
+            try
+            {
+                CurrentLobby = await LobbyService.Instance.GetLobbyAsync(lobbyId);
+                StartRefresh();
+                LobbyUpdated?.Invoke(CurrentLobby);
+                return CurrentLobby;
+            }
+            catch (Exception ex)
+            {
+                LobbyError?.Invoke(ex.Message);
+                Debug.LogWarning($"[Lobby] Get lobby failed: {ex.Message}");
+                return null;
+            }
+        }
+
         public async Task<Lobby> QuickJoinAsync(string map, string mode, string region)
         {
+            if (!await EnsureLobbyReadyAsync())
+            {
+                return null;
+            }
+
             try
             {
                 var filters = new List<QueryFilter>
@@ -163,6 +206,11 @@ namespace Peribind.Unity.Networking
 
         public async Task<List<Lobby>> QueryLobbiesAsync(string map, string mode, string region)
         {
+            if (!await EnsureLobbyReadyAsync())
+            {
+                return new List<Lobby>();
+            }
+
             try
             {
                 var filters = new List<QueryFilter>();
@@ -202,6 +250,11 @@ namespace Peribind.Unity.Networking
 
         public async Task LeaveLobbyAsync()
         {
+            if (!await EnsureLobbyReadyAsync())
+            {
+                return;
+            }
+
             if (CurrentLobby == null)
             {
                 return;
@@ -219,6 +272,81 @@ namespace Peribind.Unity.Networking
             {
                 LobbyError?.Invoke(ex.Message);
                 Debug.LogWarning($"[Lobby] Leave failed: {ex.Message}");
+            }
+        }
+
+        public async Task<Lobby> SetPlayerReadyAsync(bool isReady)
+        {
+            if (!await EnsureLobbyReadyAsync())
+            {
+                return null;
+            }
+
+            if (CurrentLobby == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                var data = new Dictionary<string, PlayerDataObject>
+                {
+                    ["ready"] = new PlayerDataObject(PlayerDataObject.VisibilityOptions.Member, isReady ? "1" : "0")
+                };
+
+                CurrentLobby = await LobbyService.Instance.UpdatePlayerAsync(
+                    CurrentLobby.Id,
+                    AuthenticationService.Instance.PlayerId,
+                    new UpdatePlayerOptions
+                    {
+                        Data = data
+                    });
+
+                LobbyUpdated?.Invoke(CurrentLobby);
+                return CurrentLobby;
+            }
+            catch (Exception ex)
+            {
+                LobbyError?.Invoke(ex.Message);
+                Debug.LogWarning($"[Lobby] Set ready failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        public async Task<Lobby> SetServerInfoAsync(string serverIp, int serverPort, string matchId)
+        {
+            if (!await EnsureLobbyReadyAsync())
+            {
+                return null;
+            }
+
+            if (CurrentLobby == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                var data = new Dictionary<string, DataObject>
+                {
+                    ["server_ip"] = new DataObject(DataObject.VisibilityOptions.Public, serverIp ?? string.Empty),
+                    ["server_port"] = new DataObject(DataObject.VisibilityOptions.Public, serverPort.ToString()),
+                    ["match_id"] = new DataObject(DataObject.VisibilityOptions.Public, matchId ?? string.Empty)
+                };
+
+                CurrentLobby = await LobbyService.Instance.UpdateLobbyAsync(CurrentLobby.Id, new UpdateLobbyOptions
+                {
+                    Data = data
+                });
+
+                LobbyUpdated?.Invoke(CurrentLobby);
+                return CurrentLobby;
+            }
+            catch (Exception ex)
+            {
+                LobbyError?.Invoke(ex.Message);
+                Debug.LogWarning($"[Lobby] Set server info failed: {ex.Message}");
+                return null;
             }
         }
 
@@ -255,6 +383,11 @@ namespace Peribind.Unity.Networking
                 StopCoroutine(_refreshRoutine);
                 _refreshRoutine = null;
             }
+        }
+
+        public void PauseLobbyRefresh()
+        {
+            StopRefresh();
         }
 
         private IEnumerator HeartbeatRoutine()
@@ -308,6 +441,41 @@ namespace Peribind.Unity.Networking
             {
                 Debug.LogWarning($"[Lobby] Heartbeat failed: {ex.Message}");
             }
+        }
+
+        private async Task<bool> EnsureLobbyReadyAsync()
+        {
+            if (ugsBootstrap == null)
+            {
+                ugsBootstrap = FindObjectOfType<UgsBootstrap>();
+            }
+
+            if (ugsBootstrap != null)
+            {
+                await ugsBootstrap.EnsureInitializedAsync();
+            }
+
+            var initialized = UnityServices.State == ServicesInitializationState.Initialized;
+            var signedIn = false;
+            if (initialized)
+            {
+                try
+                {
+                    signedIn = AuthenticationService.Instance != null && AuthenticationService.Instance.IsSignedIn;
+                }
+                catch
+                {
+                    signedIn = false;
+                }
+            }
+
+            if (!initialized || !signedIn)
+            {
+                LobbyError?.Invoke("UGS is not ready yet. Please wait a second and retry.");
+                return false;
+            }
+
+            return true;
         }
     }
 }

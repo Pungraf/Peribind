@@ -50,6 +50,11 @@ namespace Peribind.Unity.Networking
 
         public bool StartClient(string address)
         {
+            return StartClient(address, port);
+        }
+
+        public bool StartClient(string address, int portOverride)
+        {
             if (string.IsNullOrWhiteSpace(address))
             {
                 Debug.LogWarning("[DirectConnection] StartClient called with empty address.");
@@ -85,7 +90,7 @@ namespace Peribind.Unity.Networking
 
             manager.NetworkConfig.ConnectionApproval = true;
             manager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(identityProvider.PlayerId);
-            transport.SetConnectionData(address, port);
+            transport.SetConnectionData(address, (ushort)portOverride);
             var started = manager.StartClient();
             Debug.Log($"[DirectConnection] NetworkManager.StartClient returned {started}.");
             return started;

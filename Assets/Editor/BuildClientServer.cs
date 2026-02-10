@@ -8,6 +8,7 @@ public static class BuildClientServer
 {
     private const string ClientBuildDir = "Build/Client";
     private const string ServerBuildDir = "Build/Server";
+    private const string ServerBuildLinuxDir = "Build/ServerLinux";
 
     private static readonly string[] ClientScenes =
     {
@@ -76,11 +77,39 @@ public static class BuildClientServer
         WriteRunWithLogScript(output, "Server");
     }
 
+    [MenuItem("Build/Build Server (Linux64)")]
+    public static void BuildServerLinux()
+    {
+        const BuildTarget target = BuildTarget.StandaloneLinux64;
+        var output = EnsureOutputPath(ServerBuildLinuxDir, target, "PeribindServer");
+        var options = new BuildPlayerOptions
+        {
+            scenes = ServerScenes,
+            locationPathName = output,
+            target = target,
+            options = BuildOptions.None
+        };
+
+#if UNITY_2021_2_OR_NEWER
+        options.subtarget = (int)StandaloneBuildSubtarget.Server;
+#endif
+
+        var report = BuildPipeline.BuildPlayer(options);
+        LogResult(report, "Server (Linux64)");
+    }
+
     [MenuItem("Build/Build Client + Server")]
     public static void BuildClientAndServer()
     {
         BuildClient();
         BuildServer();
+    }
+
+    [MenuItem("Build/Build Client + Server (Linux64)")]
+    public static void BuildClientAndServerLinux()
+    {
+        BuildClient();
+        BuildServerLinux();
     }
 
     private static string EnsureOutputPath(string baseDir, BuildTarget target, string baseName)
@@ -90,6 +119,11 @@ public static class BuildClientServer
         if (target == BuildTarget.StandaloneOSX)
         {
             return Path.Combine(baseDir, $"{baseName}.app");
+        }
+
+        if (target == BuildTarget.StandaloneLinux64)
+        {
+            return Path.Combine(baseDir, baseName);
         }
 
         return Path.Combine(baseDir, $"{baseName}.exe");
