@@ -4875,87 +4875,6 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
---- !u!1 &1707537520
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1707537523}
-  - component: {fileID: 1707537522}
-  - component: {fileID: 1707537521}
-  - component: {fileID: 1707537524}
-  m_Layer: 0
-  m_Name: UGSManager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1707537521
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1707537520}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d45819c6332093a40b98b301fba4f81e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Peribind::Peribind.Unity.Networking.LobbyServiceController
-  ugsBootstrap: {fileID: 1707537522}
-  heartbeatIntervalSeconds: 15
-  lobbyRefreshIntervalSeconds: 5
-  writeRateLimitRetryCount: 4
-  writeRateLimitRetryDelaySeconds: 1
-  queryRetryCount: 1
-  queryRetryDelaySeconds: 1
---- !u!114 &1707537522
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1707537520}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1e7b53406dbcbb14b99184bcede067c7, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Peribind::Peribind.Unity.Networking.UgsBootstrap
-  dontDestroyOnLoad: 1
---- !u!4 &1707537523
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1707537520}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 232.21942, y: 392.47543, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1707537524
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1707537520}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c9ce733e2cc1bad479d5d1454471c535, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Peribind::Peribind.Unity.Networking.MatchRegistryClient
-  baseUrl: http://209.38.222.103:8080
-  allowEnvironmentOverride: 1
-  environmentBaseUrlKey: PERIBIND_MATCH_REGISTRY_URL
 --- !u!1 &1715048586
 GameObject:
   m_ObjectHideFlags: 0
@@ -6149,7 +6068,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5c143d5be669d2c40862da471585f519, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Peribind::Peribind.Unity.UI.LobbyUgsMenu
-  lobbyService: {fileID: 1707537521}
+  lobbyService: {fileID: 0}
   lobbyNameInput: {fileID: 353606246}
   mapInput: {fileID: 100127209}
   modeInput: {fileID: 1340025829}
@@ -6165,10 +6084,9 @@ MonoBehaviour:
   readyButton: {fileID: 152288590}
   readyButtonText: {fileID: 388712266}
   directConnection: {fileID: 2098417158}
-  matchRegistry: {fileID: 1707537524}
+  matchRegistry: {fileID: 0}
   reconnectButton: {fileID: 376050833}
   matchIdPrefsKey: last_match_id
-  identityProvider: {fileID: 0}
 --- !u!1 &2111716933
 GameObject:
   m_ObjectHideFlags: 0
@@ -6599,4 +6517,3 @@ SceneRoots:
   - {fileID: 2058289967}
   - {fileID: 883437710}
   - {fileID: 2098417157}
-  - {fileID: 1707537523}

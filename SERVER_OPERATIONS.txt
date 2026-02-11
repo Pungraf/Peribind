@@ -1,0 +1,195 @@
+Peribind VPS Server Operations (Match Registry + Match Processes)
+===============================================================
+
+Scope
+-----
+This guide covers:
+- Match registry service control (systemd)
+- PostgreSQL checks
+- Match process checks
+- Deploy/restart flow
+
+Assumptions
+-----------
+- Registry service name: match-registry.service
+- Registry app path: /opt/match-registry/server.js
+- Dedicated server build path: /opt/peribind-server
+- Match logs path: /opt/peribind-server/logs
+- Registry HTTP port: 8080
+- Match UDP range: 7777-7877
+
+
+1) Match Registry service control
+---------------------------------
+Status:
+systemctl status match-registry.service --no-pager -l
+
+Start:
+systemctl start match-registry.service
+
+Stop:
+systemctl stop match-registry.service
+
+Restart (after code/env changes):
+systemctl restart match-registry.service
+
+Reload systemd unit files (after editing service unit):
+systemctl daemon-reload
+systemctl restart match-registry.service
+
+Live logs:
+journalctl -u match-registry.service -f
+
+Last 200 log lines:
+journalctl -u match-registry.service -n 200 --no-pager
+
+
+2) Health and registry API checks
+---------------------------------
+Local on VPS:
+curl http://127.0.0.1:8080/health
+
+From your PC:
+curl http://<VPS_PUBLIC_IP>:8080/health
+
+Check specific match:
+curl http://<VPS_PUBLIC_IP>:8080/match/<matchId>
+
+Check player last match:
+curl http://<VPS_PUBLIC_IP>:8080/player/<playerId>/last
+
+
+3) Match process checks
+-----------------------
+List running Peribind server processes:
+pgrep -af PeribindServer
+
+Check bound UDP ports:
+ss -lunp | grep PeribindServer
+
+Tail newest match log:
+tail -f "$(ls -t /opt/peribind-server/logs/*.log | head -n 1)"
+
+List recent match logs:
+ls -lt /opt/peribind-server/logs | head
+
+
+4) PostgreSQL checks
+--------------------
+Service status:
+systemctl status postgresql --no-pager -l
+
+Connect to psql (example):
+sudo -u postgres psql
+
+List databases:
+\l
+
+Connect to app DB (example):
+\c peribind
+
+List tables:
+\dt
+
+Quick counts:
+SELECT COUNT(*) FROM matches;
+SELECT COUNT(*) FROM matches WHERE ended_at IS NULL;
+SELECT COUNT(*) FROM player_last_match;
+
+Recent matches:
+SELECT match_id, lobby_id, server_port, pid, created_at, ended_at
+FROM matches
+ORDER BY created_at DESC
+LIMIT 20;
+
+
+5) Deploy flow (registry + dedicated server build)
+--------------------------------------------------
+A) Upload new dedicated server files to /opt/peribind-server
+   - PeribindServer
+   - PeribindServer_Data/
+
+B) Ensure executable bit:
+chmod +x /opt/peribind-server/PeribindServer
+
+C) Upload updated registry code to /opt/match-registry
+   - server.js
+   - package.json
+   - package-lock.json (if changed)
+
+D) Install/update node dependencies:
+cd /opt/match-registry
+npm ci
+
+E) Restart registry:
+systemctl restart match-registry.service
+systemctl status match-registry.service --no-pager -l
+
+F) Verify:
+curl http://127.0.0.1:8080/health
+journalctl -u match-registry.service -n 100 --no-pager
+
+
+6) Environment variables for registry (systemd)
+-----------------------------------------------
+Edit service:
+systemctl edit --full match-registry.service
+
+In [Service], set at least:
+Environment=NODE_ENV=production
+Environment=PERIBIND_SERVER_BIN=/opt/peribind-server/PeribindServer
+Environment=PERIBIND_SERVER_CWD=/opt/peribind-server
+Environment=PERIBIND_SERVER_PUBLIC_IP=<VPS_PUBLIC_IP>
+Environment=PERIBIND_SERVER_LOG_DIR=/opt/peribind-server/logs
+Environment=PERIBIND_SERVER_PORT_MIN=7777
+Environment=PERIBIND_SERVER_PORT_MAX=7877
+Environment=PERIBIND_MATCH_REGISTRY_URL=http://127.0.0.1:8080
+Environment=PGHOST=127.0.0.1
+Environment=PGPORT=5432
+Environment=PGDATABASE=peribind
+Environment=PGUSER=peribind
+Environment=PGPASSWORD=<strong_password>
+
+Apply:
+systemctl daemon-reload
+systemctl restart match-registry.service
+
+
+7) Firewall checklist
+---------------------
+On VPS (ufw):
+- Allow SSH 22/tcp
+- Allow registry 8080/tcp (for clients/admin if needed)
+- Allow game range 7777-7877/udp
+
+Commands:
+ufw allow 22/tcp
+ufw allow 8080/tcp
+ufw allow 7777:7877/udp
+ufw reload
+ufw status numbered
+
+If DigitalOcean Cloud Firewall is enabled, mirror the same inbound rules.
+
+
+8) Typical troubleshooting
+--------------------------
+Issue: "Internal Server Error" in client lobby
+- Check registry logs:
+  journalctl -u match-registry.service -n 200 --no-pager
+- Check health:
+  curl http://127.0.0.1:8080/health
+- Check Postgres:
+  systemctl status postgresql --no-pager -l
+
+Issue: Match cannot start / bind error
+- Check UDP ports in use:
+  ss -lunp | grep PeribindServer
+- Check registry active ports:
+  curl http://127.0.0.1:8080/health
+
+Issue: Old match state appears unexpectedly
+- Confirm new match process launched on new port in health/DB
+- Confirm old match eventually ends (ended_at set)
+- Check match logs in /opt/peribind-server/logs
+

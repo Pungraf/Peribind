@@ -4,6 +4,8 @@ using System.Text;
 using System;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Unity.Services.Authentication;
+using Unity.Services.Core;
 
 namespace Peribind.Unity.Networking
 {
@@ -97,15 +99,14 @@ namespace Peribind.Unity.Networking
                 return false;
             }
 
-            var identityProvider = FindObjectOfType<PlayerIdentityProvider>(true);
-            if (identityProvider == null || string.IsNullOrWhiteSpace(identityProvider.PlayerId))
+            if (!TryGetAuthenticatedPlayerId(out var playerId))
             {
-                Debug.LogWarning("[DirectConnection] StartClient blocked: missing credentials.");
+                Debug.LogWarning("[DirectConnection] StartClient blocked: user is not authenticated.");
                 return false;
             }
 
             manager.NetworkConfig.ConnectionApproval = true;
-            manager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(identityProvider.PlayerId);
+            manager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(playerId);
             transport.SetConnectionData(address, (ushort)portOverride);
             var started = manager.StartClient();
             Debug.Log($"[DirectConnection] NetworkManager.StartClient returned {started}.");
@@ -199,6 +200,30 @@ namespace Peribind.Unity.Networking
             }
 
             return port;
+        }
+
+        private static bool TryGetAuthenticatedPlayerId(out string playerId)
+        {
+            playerId = string.Empty;
+            if (UnityServices.State != ServicesInitializationState.Initialized)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (AuthenticationService.Instance != null && AuthenticationService.Instance.IsSignedIn)
+                {
+                    playerId = AuthenticationService.Instance.PlayerId ?? string.Empty;
+                    return !string.IsNullOrWhiteSpace(playerId);
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
         }
     }
 }

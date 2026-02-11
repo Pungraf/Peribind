@@ -9,12 +9,32 @@ namespace Peribind.Unity.UI
 {
     public class LoginMenu : MonoBehaviour
     {
+        [Header("Panels")]
+        [SerializeField] private GameObject loginPanel;
+        [SerializeField] private GameObject registerPanel;
+
+        [Header("Login")]
         [SerializeField] private TMP_InputField loginInput;
         [SerializeField] private TMP_InputField passwordInput;
+        [SerializeField] private TMP_Text loginInfoText;
         [SerializeField] private Button loginButton;
+        [SerializeField] private Button registerButton;
         [SerializeField] private Button quitButton;
-        [SerializeField] private PlayerIdentityProvider identityProvider;
+
+        [Header("Register")]
+        [SerializeField] private TMP_InputField registerLoginInput;
+        [SerializeField] private TMP_InputField registerPasswordInput;
+        [SerializeField] private TMP_InputField registerConfirmPasswordInput;
+        [SerializeField] private TMP_Text registerInfoText;
+        [SerializeField] private Button registerSubmitButton;
+        [SerializeField] private Button returnButton;
+
+        [Header("Flow")]
+        [SerializeField] private UgsBootstrap ugsBootstrap;
         [SerializeField] private string nextSceneName = "StarterScene";
+        [SerializeField] private bool proceedToNextSceneAfterRegister = true;
+
+        private bool _isSubmitting;
 
         private void Awake()
         {
@@ -23,10 +43,29 @@ namespace Peribind.Unity.UI
                 loginButton.onClick.AddListener(OnLoginClicked);
             }
 
+            if (registerButton != null)
+            {
+                registerButton.onClick.AddListener(OnRegisterPanelClicked);
+            }
+
             if (quitButton != null)
             {
                 quitButton.onClick.AddListener(OnQuitClicked);
             }
+
+            if (registerSubmitButton != null)
+            {
+                registerSubmitButton.onClick.AddListener(OnRegisterSubmitClicked);
+            }
+
+            if (returnButton != null)
+            {
+                returnButton.onClick.AddListener(OnReturnToLoginClicked);
+            }
+
+            SetPanelState(showLogin: true);
+            SetLoginInfo(string.Empty);
+            SetRegisterInfo(string.Empty);
         }
 
         private void OnDestroy()
@@ -40,18 +79,27 @@ namespace Peribind.Unity.UI
             {
                 quitButton.onClick.RemoveListener(OnQuitClicked);
             }
-        }
 
-        private void OnLoginClicked()
-        {
-            if (identityProvider == null)
+            if (registerButton != null)
             {
-                identityProvider = FindObjectOfType<PlayerIdentityProvider>(true);
+                registerButton.onClick.RemoveListener(OnRegisterPanelClicked);
             }
 
-            if (identityProvider == null)
+            if (registerSubmitButton != null)
             {
-                Debug.LogWarning("[LoginMenu] PlayerIdentityProvider missing.");
+                registerSubmitButton.onClick.RemoveListener(OnRegisterSubmitClicked);
+            }
+
+            if (returnButton != null)
+            {
+                returnButton.onClick.RemoveListener(OnReturnToLoginClicked);
+            }
+        }
+
+        private async void OnLoginClicked()
+        {
+            if (_isSubmitting)
+            {
                 return;
             }
 
@@ -59,20 +107,44 @@ namespace Peribind.Unity.UI
             var password = passwordInput != null ? passwordInput.text : string.Empty;
             if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password))
             {
-                Debug.LogWarning("[LoginMenu] Login blocked: empty credentials.");
+                SetLoginInfo("Enter login and password.");
                 return;
             }
 
-            identityProvider.SetFromCredentials(login, password);
-            // Keep UGS identity aligned with gameplay identity across reconnects.
-            var profile = UgsBootstrap.BuildProfileFromIdentity(identityProvider.PlayerId);
-            PlayerPrefs.SetString(UgsBootstrap.ProfilePrefKey, profile);
-            PlayerPrefs.Save();
-            ClearSelection();
-
-            if (!string.IsNullOrWhiteSpace(nextSceneName))
+            if (ugsBootstrap == null)
             {
-                SceneManager.LoadScene(nextSceneName);
+                ugsBootstrap = FindObjectOfType<UgsBootstrap>(true);
+            }
+
+            if (ugsBootstrap == null)
+            {
+                SetLoginInfo("Authentication service is unavailable.");
+                return;
+            }
+
+            _isSubmitting = true;
+            SetButtonsInteractable(false);
+            SetLoginInfo("Signing in...");
+            try
+            {
+                var result = await ugsBootstrap.SignInWithUsernamePasswordAsync(login, password);
+                if (!result.Success)
+                {
+                    SetLoginInfo(string.IsNullOrWhiteSpace(result.Message) ? "Invalid login or password." : result.Message);
+                    return;
+                }
+
+                SetLoginInfo("Login successful.");
+                ClearSelection();
+                if (!string.IsNullOrWhiteSpace(nextSceneName))
+                {
+                    SceneManager.LoadScene(nextSceneName);
+                }
+            }
+            finally
+            {
+                _isSubmitting = false;
+                SetButtonsInteractable(true);
             }
         }
 
@@ -82,12 +154,156 @@ namespace Peribind.Unity.UI
             UnityEngine.Application.Quit();
         }
 
+        private void OnRegisterPanelClicked()
+        {
+            if (_isSubmitting)
+            {
+                return;
+            }
+
+            SetPanelState(showLogin: false);
+            SetRegisterInfo(string.Empty);
+            ClearSelection();
+        }
+
+        private async void OnRegisterSubmitClicked()
+        {
+            if (_isSubmitting)
+            {
+                return;
+            }
+
+            var login = registerLoginInput != null ? registerLoginInput.text : string.Empty;
+            var password = registerPasswordInput != null ? registerPasswordInput.text : string.Empty;
+            var confirm = registerConfirmPasswordInput != null ? registerConfirmPasswordInput.text : string.Empty;
+
+            if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(confirm))
+            {
+                SetRegisterInfo("Fill all fields.");
+                return;
+            }
+
+            if (!string.Equals(password, confirm, System.StringComparison.Ordinal))
+            {
+                SetRegisterInfo("Password and confirmation do not match.");
+                return;
+            }
+
+            if (ugsBootstrap == null)
+            {
+                ugsBootstrap = FindObjectOfType<UgsBootstrap>(true);
+            }
+
+            if (ugsBootstrap == null)
+            {
+                SetRegisterInfo("Authentication service is unavailable.");
+                return;
+            }
+
+            _isSubmitting = true;
+            SetButtonsInteractable(false);
+            SetRegisterInfo("Creating account...");
+            try
+            {
+                var result = await ugsBootstrap.RegisterWithUsernamePasswordAsync(login, password);
+                if (!result.Success)
+                {
+                    SetRegisterInfo(string.IsNullOrWhiteSpace(result.Message) ? "Registration failed." : result.Message);
+                    return;
+                }
+
+                SetRegisterInfo("Registration successful.");
+                if (proceedToNextSceneAfterRegister && !string.IsNullOrWhiteSpace(nextSceneName))
+                {
+                    ClearSelection();
+                    SceneManager.LoadScene(nextSceneName);
+                }
+            }
+            finally
+            {
+                _isSubmitting = false;
+                SetButtonsInteractable(true);
+            }
+        }
+
+        private void OnReturnToLoginClicked()
+        {
+            if (_isSubmitting)
+            {
+                return;
+            }
+
+            if (registerLoginInput != null) registerLoginInput.text = string.Empty;
+            if (registerPasswordInput != null) registerPasswordInput.text = string.Empty;
+            if (registerConfirmPasswordInput != null) registerConfirmPasswordInput.text = string.Empty;
+            SetRegisterInfo(string.Empty);
+            SetPanelState(showLogin: true);
+            ClearSelection();
+        }
+
         private void ClearSelection()
         {
             var eventSystem = EventSystem.current;
             if (eventSystem != null)
             {
                 eventSystem.SetSelectedGameObject(null);
+            }
+        }
+
+        private void SetButtonsInteractable(bool interactable)
+        {
+            if (loginButton != null)
+            {
+                loginButton.interactable = interactable;
+            }
+
+            if (registerButton != null)
+            {
+                registerButton.interactable = interactable;
+            }
+
+            if (quitButton != null)
+            {
+                quitButton.interactable = interactable;
+            }
+
+            if (registerSubmitButton != null)
+            {
+                registerSubmitButton.interactable = interactable;
+            }
+
+            if (returnButton != null)
+            {
+                returnButton.interactable = interactable;
+            }
+        }
+
+        private void SetPanelState(bool showLogin)
+        {
+            if (loginPanel != null)
+            {
+                loginPanel.SetActive(showLogin);
+            }
+
+            if (registerPanel != null)
+            {
+                registerPanel.SetActive(!showLogin);
+            }
+        }
+
+        private void SetLoginInfo(string message)
+        {
+            if (loginInfoText != null)
+            {
+                loginInfoText.text = message ?? string.Empty;
+            }
+        }
+
+        private void SetRegisterInfo(string message)
+        {
+            if (registerInfoText != null)
+            {
+                registerInfoText.text = message ?? string.Empty;
             }
         }
     }

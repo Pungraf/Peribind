@@ -7,6 +7,8 @@ using Peribind.Domain.Pieces;
 using Peribind.Unity.Board;
 using Peribind.Unity.ScriptableObjects;
 using Unity.Netcode;
+using Unity.Services.Authentication;
+using Unity.Services.Core;
 using UnityEngine;
 
 namespace Peribind.Unity.Networking
@@ -20,7 +22,6 @@ namespace Peribind.Unity.Networking
         [SerializeField] private GridMapper gridMapper;
         [SerializeField] private GameConfigSO gameConfig;
 
-        [SerializeField] private PlayerIdentityProvider identityProvider;
         [SerializeField] private string disconnectSceneName = "LobbyScene";
         private GameSession _session;
         private Dictionary<string, PieceDefinitionSO> _piecesById;
@@ -59,11 +60,6 @@ namespace Peribind.Unity.Networking
         private void Awake()
         {
             _instance = this;
-            if (identityProvider == null)
-            {
-                identityProvider = FindObjectOfType<PlayerIdentityProvider>();
-            }
-
             InitializeSessionIfNeeded();
         }
 
@@ -850,17 +846,11 @@ namespace Peribind.Unity.Networking
 
         private int ResolveLocalPlayerIdFromAuthMap()
         {
-            if (identityProvider == null)
-            {
-                identityProvider = FindObjectOfType<PlayerIdentityProvider>();
-            }
-
-            if (identityProvider == null)
+            if (!TryGetLocalAuthId(out var authId))
             {
                 return -1;
             }
 
-            var authId = identityProvider.PlayerId;
             if (string.IsNullOrWhiteSpace(authId))
             {
                 return -1;
@@ -951,18 +941,25 @@ namespace Peribind.Unity.Networking
                 return false;
             }
 
-            if (identityProvider == null)
-            {
-                identityProvider = FindObjectOfType<PlayerIdentityProvider>();
-            }
-
-            if (identityProvider == null)
+            if (UnityServices.State != ServicesInitializationState.Initialized)
             {
                 return false;
             }
 
-            authId = identityProvider.PlayerId ?? string.Empty;
-            return !string.IsNullOrWhiteSpace(authId);
+            try
+            {
+                if (AuthenticationService.Instance == null || !AuthenticationService.Instance.IsSignedIn)
+                {
+                    return false;
+                }
+
+                authId = AuthenticationService.Instance.PlayerId ?? string.Empty;
+                return !string.IsNullOrWhiteSpace(authId);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private void RejectAction(ulong clientId, string reason)

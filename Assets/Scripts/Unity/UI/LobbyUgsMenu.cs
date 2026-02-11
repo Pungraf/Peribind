@@ -39,7 +39,6 @@ namespace Peribind.Unity.UI
         [SerializeField] private MatchRegistryClient matchRegistry;
         [SerializeField] private Button reconnectButton;
         [SerializeField] private string matchIdPrefsKey = "last_match_id";
-        [SerializeField] private PlayerIdentityProvider identityProvider;
 
         private bool _isReady;
         private bool _connecting;
@@ -75,11 +74,6 @@ namespace Peribind.Unity.UI
             if (matchRegistry == null)
             {
                 matchRegistry = FindObjectOfType<MatchRegistryClient>();
-            }
-
-            if (identityProvider == null)
-            {
-                identityProvider = FindObjectOfType<PlayerIdentityProvider>(true);
             }
 
             if (lobbyService != null)
@@ -581,19 +575,31 @@ namespace Peribind.Unity.UI
 
         private string GetScopedMatchIdPrefsKey()
         {
-            if (identityProvider == null)
-            {
-                identityProvider = FindObjectOfType<PlayerIdentityProvider>(true);
-            }
-
-            if (identityProvider == null || string.IsNullOrWhiteSpace(identityProvider.PlayerId))
+            var playerId = TryGetAuthenticatedPlayerId();
+            if (string.IsNullOrWhiteSpace(playerId))
             {
                 return matchIdPrefsKey;
             }
 
-            var playerId = identityProvider.PlayerId;
             var suffix = playerId.Length <= 16 ? playerId : playerId.Substring(0, 16);
             return $"{matchIdPrefsKey}_{suffix}";
+        }
+
+        private static string TryGetAuthenticatedPlayerId()
+        {
+            try
+            {
+                if (AuthenticationService.Instance != null && AuthenticationService.Instance.IsSignedIn)
+                {
+                    return AuthenticationService.Instance.PlayerId ?? string.Empty;
+                }
+            }
+            catch
+            {
+                return string.Empty;
+            }
+
+            return string.Empty;
         }
     }
 }

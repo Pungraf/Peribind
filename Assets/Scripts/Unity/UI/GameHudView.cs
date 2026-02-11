@@ -5,6 +5,7 @@ using Peribind.Unity.Board;
 using Peribind.Unity.Networking;
 using UnityEngine.SceneManagement;
 using UnityEngine.InputSystem;
+using Unity.Services.Authentication;
 
 namespace Peribind.Unity.UI
 {
@@ -32,7 +33,6 @@ namespace Peribind.Unity.UI
         [SerializeField] private string acknowledgeButtonLabel = "OK";
         [SerializeField] private float surrenderExitDelaySeconds = 0.35f;
         private const string LastMatchIdPrefsKey = "last_match_id";
-        [SerializeField] private PlayerIdentityProvider identityProvider;
 
         private bool _menuOpen;
         private bool _isExiting;
@@ -52,10 +52,6 @@ namespace Peribind.Unity.UI
             if (networkController == null)
             {
                 networkController = FindObjectOfType<NetworkGameController>();
-            }
-            if (identityProvider == null)
-            {
-                identityProvider = FindObjectOfType<PlayerIdentityProvider>(true);
             }
             BindNetworkEventsIfNeeded();
 
@@ -435,19 +431,31 @@ namespace Peribind.Unity.UI
 
         private string GetScopedMatchIdPrefsKey()
         {
-            if (identityProvider == null)
-            {
-                identityProvider = FindObjectOfType<PlayerIdentityProvider>(true);
-            }
-
-            if (identityProvider == null || string.IsNullOrWhiteSpace(identityProvider.PlayerId))
+            var playerId = TryGetAuthenticatedPlayerId();
+            if (string.IsNullOrWhiteSpace(playerId))
             {
                 return LastMatchIdPrefsKey;
             }
 
-            var playerId = identityProvider.PlayerId;
             var suffix = playerId.Length <= 16 ? playerId : playerId.Substring(0, 16);
             return $"{LastMatchIdPrefsKey}_{suffix}";
+        }
+
+        private static string TryGetAuthenticatedPlayerId()
+        {
+            try
+            {
+                if (AuthenticationService.Instance != null && AuthenticationService.Instance.IsSignedIn)
+                {
+                    return AuthenticationService.Instance.PlayerId ?? string.Empty;
+                }
+            }
+            catch
+            {
+                return string.Empty;
+            }
+
+            return string.Empty;
         }
     }
 }
