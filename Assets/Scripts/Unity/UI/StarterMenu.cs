@@ -1,26 +1,36 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Unity.Services.Authentication;
 
 namespace Peribind.Unity.UI
 {
     public class StarterMenu : MonoBehaviour
     {
-        [SerializeField] private string gameSceneName = "GameScene";
         [SerializeField] private string lobbySceneName = "LobbyScene";
-
-        public void LoadGameScene()
-        {
-            SceneManager.LoadScene(gameSceneName);
-        }
+        [SerializeField] private string loginSceneName = "LoginScene";
 
         public void LoadLobbyScene()
         {
             SceneManager.LoadScene(lobbySceneName);
         }
 
-        public void QuitGame()
+        public void Logout()
         {
-            UnityEngine.Application.Quit();
+            TryLogout();
+            SceneManager.LoadScene(loginSceneName);
+        }
+
+        private static void TryLogout()
+        {
+            try
+            {
+                AuthenticationService.Instance.SignOut(true);
+                AuthenticationService.Instance.ClearSessionToken();
+            }
+            catch
+            {
+                // Best effort only; missing/disabled services should not block scene navigation.
+            }
         }
     }
 }

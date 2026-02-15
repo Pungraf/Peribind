@@ -31,8 +31,14 @@ namespace Peribind.Unity.UI
 
         [Header("Flow")]
         [SerializeField] private UgsBootstrap ugsBootstrap;
+        [SerializeField] private MatchRegistryClient matchRegistryClient;
         [SerializeField] private string nextSceneName = "StarterScene";
         [SerializeField] private bool proceedToNextSceneAfterRegister = true;
+
+        [Header("Client Version Gate")]
+        [SerializeField] private bool enforceMinClientVersion = true;
+        [SerializeField] private string releaseChannel = "stable";
+        [SerializeField] private string releasePlatform = "win64";
 
         private bool _isSubmitting;
 
@@ -111,6 +117,12 @@ namespace Peribind.Unity.UI
                 return;
             }
 
+            var versionGate = await EnsureClientVersionAllowedAsync(SetLoginInfo);
+            if (!versionGate)
+            {
+                return;
+            }
+
             if (ugsBootstrap == null)
             {
                 ugsBootstrap = FindObjectOfType<UgsBootstrap>(true);
@@ -186,6 +198,12 @@ namespace Peribind.Unity.UI
             if (!string.Equals(password, confirm, System.StringComparison.Ordinal))
             {
                 SetRegisterInfo("Password and confirmation do not match.");
+                return;
+            }
+
+            var versionGate = await EnsureClientVersionAllowedAsync(SetRegisterInfo);
+            if (!versionGate)
+            {
                 return;
             }
 
@@ -305,6 +323,45 @@ namespace Peribind.Unity.UI
             {
                 registerInfoText.text = message ?? string.Empty;
             }
+        }
+
+        private async System.Threading.Tasks.Task<bool> EnsureClientVersionAllowedAsync(System.Action<string> setInfo)
+        {
+            if (!enforceMinClientVersion)
+            {
+                return true;
+            }
+
+            if (matchRegistryClient == null)
+            {
+                matchRegistryClient = FindObjectOfType<MatchRegistryClient>(true);
+            }
+
+            if (matchRegistryClient == null)
+            {
+                return true;
+            }
+
+            var release = await matchRegistryClient.GetLatestReleaseAsync(releaseChannel, releasePlatform);
+            if (release == null)
+            {
+                return true;
+            }
+
+            var currentVersion = UnityEngine.Application.version;
+            if (MatchRegistryClient.IsVersionSupported(currentVersion, release.minSupportedVersion))
+            {
+                return true;
+            }
+
+            var message =
+                $"Update required. Current {currentVersion}, minimum {release.minSupportedVersion}.";
+            if (!string.IsNullOrWhiteSpace(release.downloadUrl))
+            {
+                message = $"{message} Download latest client.";
+            }
+            setInfo?.Invoke(message);
+            return false;
         }
     }
 }

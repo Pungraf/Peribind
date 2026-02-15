@@ -1,0 +1,3 @@
+C:\Users\johny\Unity\Peribind\Build\Launcher\PeribindLauncher.pdb
+C:\Users\johny\Unity\Peribind\Build\Launcher\launcher.config.json
+C:\Users\johny\Unity\Peribind\Build\Launcher\PeribindLauncher.exe

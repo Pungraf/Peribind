@@ -193,3 +193,89 @@ Issue: Old match state appears unexpectedly
 - Confirm old match eventually ends (ended_at set)
 - Check match logs in /opt/peribind-server/logs
 
+
+9) Secret rotation runbook (do this immediately after any leak)
+---------------------------------------------------------------
+Rotate these secrets:
+- Registry admin token: PERIBIND_RELEASE_ADMIN_TOKEN
+- Postgres app password: PGPASSWORD for user "peribind"
+
+9.1 Rotate registry admin token
+Generate new token:
+openssl rand -hex 32
+
+Edit service:
+systemctl edit --full match-registry.service
+
+In [Service], set or replace:
+Environment=PERIBIND_RELEASE_ADMIN_TOKEN=<NEW_TOKEN>
+
+Apply and verify:
+systemctl daemon-reload
+systemctl restart match-registry.service
+systemctl show match-registry.service -p Environment --no-pager | grep PERIBIND_RELEASE_ADMIN_TOKEN
+
+9.2 Rotate Postgres password for app user
+Set new DB password (single command):
+sudo -u postgres psql -c "ALTER USER peribind WITH PASSWORD '<NEW_DB_PASSWORD>';"
+
+Update systemd env:
+systemctl edit --full match-registry.service
+Replace:
+Environment=PGPASSWORD=<NEW_DB_PASSWORD>
+
+Apply:
+systemctl daemon-reload
+systemctl restart match-registry.service
+
+Verify DB login:
+PGPASSWORD='<NEW_DB_PASSWORD>' psql -h 127.0.0.1 -U peribind -d peribind -c '\dt'
+
+Verify registry still works:
+curl http://127.0.0.1:8080/health
+
+9.3 Cleanup old secret traces
+- Remove old secrets from shell history where possible:
+  history -d <line_number>
+  history -w
+- Avoid pasting live secrets to chat, screenshots, or logs.
+
+9.4 Rotation cadence
+- Immediate rotation after any suspected exposure.
+- Admin token: every 1-3 months.
+- DB password: every 3-6 months.
+
+
+10) HTTPS for downloads with Certbot (recommended)
+--------------------------------------------------
+Goal:
+- Serve release files over HTTPS.
+- Use HTTPS URL in /release/publish downloadUrl.
+
+Requirements:
+- Domain name pointing to VPS public IP (A record), e.g. download.example.com.
+- Port 80/tcp open in UFW and DigitalOcean firewall.
+
+Install Certbot:
+apt update
+apt install -y certbot python3-certbot-nginx
+
+Issue and install certificate (auto-configure nginx):
+certbot --nginx -d <YOUR_DOMAIN>
+
+Test HTTPS:
+curl -I https://<YOUR_DOMAIN>/downloads/<your_file>.zip
+
+Auto-renew test:
+certbot renew --dry-run
+
+After HTTPS works, publish release with HTTPS URL:
+curl -X POST http://127.0.0.1:8080/release/publish \
+  -H "Content-Type: application/json" \
+  -H "x-admin-token: <PERIBIND_RELEASE_ADMIN_TOKEN>" \
+  -d '{"channel":"stable","platform":"win64","version":"<VERSION>","minSupportedVersion":"<MIN_VERSION>","downloadUrl":"https://<YOUR_DOMAIN>/downloads/<FILE>.zip","sha256":"<SHA256_HEX>","notesUrl":"","sizeBytes":0}'
+
+Notes:
+- Certbot is free (Let's Encrypt certificates are free).
+- It solves your HTTP issue by enabling trusted HTTPS transport.
+- Without a domain, trusted HTTPS is not practical on raw IP for this setup.

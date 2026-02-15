@@ -3148,7 +3148,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1238665046}
   - component: {fileID: 1238665045}
-  - component: {fileID: 1238665044}
   m_Layer: 0
   m_Name: LoginController
   m_TagString: Untagged
@@ -3156,20 +3155,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1238665044
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1238665043}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c13f22e81f6bdc44a8a2b98694b19dd7, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Peribind::Peribind.Unity.Networking.PlayerIdentityProvider
-  playerPrefsKey: Peribind.PlayerId
-  cachedPlayerId: 
 --- !u!114 &1238665045
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3197,8 +3182,12 @@ MonoBehaviour:
   registerSubmitButton: {fileID: 1250235813}
   returnButton: {fileID: 1237857723}
   ugsBootstrap: {fileID: 0}
+  matchRegistryClient: {fileID: 0}
   nextSceneName: StarterScene
   proceedToNextSceneAfterRegister: 0
+  enforceMinClientVersion: 1
+  releaseChannel: stable
+  releasePlatform: win64
 --- !u!4 &1238665046
 Transform:
   m_ObjectHideFlags: 0

@@ -1,0 +1,184 @@
+Peribind Launcher - Setup and Operations
+========================================
+
+Overview
+--------
+The launcher checks Match Registry release manifest and updates local game files before start.
+It expects release files in ZIP format.
+
+Files
+-----
+- Launcher project: Launcher/PeribindLauncher.csproj
+- Launcher code: Launcher/Program.cs
+- Launcher config: Launcher/launcher.config.json
+
+Build launcher (Windows)
+------------------------
+From repository root:
+
+1) dotnet restore Launcher/PeribindLauncher.csproj
+2) dotnet publish Launcher/PeribindLauncher.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o Build/Launcher
+
+Result:
+- Build/Launcher/PeribindLauncher.exe
+- Build/Launcher/launcher.config.json (copy from Launcher/launcher.config.json)
+
+Important packaging rule
+------------------------
+Release archive must be ZIP and contain game files:
+- PeribindClient.exe
+- PeribindClient_Data/
+
+Recommended archive layout:
+- Root of ZIP directly contains PeribindClient.exe and PeribindClient_Data.
+
+Publish release file on VPS
+---------------------------
+Example path:
+- /var/www/peribind/downloads/PeribindClient_0.2.0.zip
+Public URL example:
+- http://209.38.222.103/downloads/PeribindClient_0.2.0.zip
+
+Publish release manifest entry
+------------------------------
+Run on VPS:
+
+curl -X POST http://127.0.0.1:8080/release/publish \
+  -H "Content-Type: application/json" \
+  -H "x-admin-token: <PERIBIND_RELEASE_ADMIN_TOKEN>" \
+  -d '{"channel":"stable","platform":"win64","version":"0.2.0","minSupportedVersion":"0.2.0","downloadUrl":"https://download.peribind.com/downloads/PeribindClient_0.2.0.zip","sha256":"<SHA256_HEX_64>","notesUrl":"https://download.peribind.com/patch-notes/0.2.0.html","sizeBytes":0}'
+
+Verify:
+curl "http://127.0.0.1:8080/release/latest?channel=stable&platform=win64"
+
+How launcher updates
+--------------------
+1) Reads launcher.config.json.
+2) Calls /release/latest.
+3) Compares local version file game/version.txt with release version.
+4) If different, validates release security:
+   - downloadUrl must be HTTPS
+   - sha256 must be non-empty 64-char hex
+5) Downloads ZIP and replaces game folder.
+6) Verifies downloaded file sha256 matches manifest.
+7) Writes game/version.txt with release version.
+8) Starts game executable.
+
+Launcher config keys
+--------------------
+- RegistryBaseUrl: Match Registry URL.
+- Channel: Release channel, e.g. stable.
+- Platform: Release platform, e.g. win64.
+- InstallDirectory: Relative or absolute path where game is installed.
+- GameExeRelativePath: Executable path relative to InstallDirectory.
+- HttpTimeoutSeconds: HTTP timeout.
+
+Operations checklist for each release
+-------------------------------------
+1) Build game client.
+2) Zip build output.
+3) Upload ZIP to VPS downloads path.
+4) Create patch notes page for this version.
+5) Upload patch notes page.
+6) Compute sha256 and file size:
+   - Windows PowerShell:
+     (Get-FileHash "C:\path\PeribindClient_0.2.0.zip" -Algorithm SHA256).Hash.ToLower()
+   - Linux (optional):
+     sha256sum /path/PeribindClient_0.2.0.zip
+   - Get file size in bytes (Windows PowerShell):
+     (Get-Item "C:\path\PeribindClient_0.2.0.zip").Length
+7) Publish release entry to registry (HTTPS URL + sha256 + notesUrl).
+8) Smoke-test launcher on clean machine.
+
+Patch notes workflow
+--------------------
+Recommended path on VPS:
+- /var/www/peribind/patch-notes/
+
+Example file:
+- /var/www/peribind/patch-notes/0.2.0.html
+
+Example minimal HTML:
+<html>
+  <head><title>Peribind 0.2.0 patch notes</title></head>
+  <body>
+    <h1>Peribind 0.2.0</h1>
+    <ul>
+      <li>Launcher update pipeline enabled.</li>
+      <li>Lobby reconnect stability fixes.</li>
+      <li>HTTPS release download.</li>
+    </ul>
+  </body>
+</html>
+
+Public URL example:
+- https://download.peribind.com/patch-notes/0.2.0.html
+
+Ensure nginx serves this path (same vhost can serve both):
+- /downloads/
+- /patch-notes/
+
+Nginx snippet (copy-paste into download.peribind.com server block):
+location /patch-notes/ {
+    alias /var/www/peribind/patch-notes/;
+    try_files $uri =404;
+    add_header Cache-Control "public, max-age=300";
+    default_type text/html;
+}
+
+Apply nginx changes:
+1) Edit config:
+   sudo nano /etc/nginx/sites-available/peribind-downloads
+2) Paste location block inside server { ... }.
+3) Validate and reload:
+   sudo nginx -t
+   sudo systemctl reload nginx
+4) Test:
+   curl -I https://download.peribind.com/patch-notes/0.2.0.html
+
+Version fields explained (important)
+------------------------------------
+There are two version values in release manifest:
+
+1) version
+   - The exact build version this release points to.
+   - Launcher uses it to decide whether local install differs from latest release.
+   - If local != version, launcher tries to update.
+
+2) minSupportedVersion
+   - Minimum client version allowed to continue in login/game flow.
+   - Used by game-side gate (LoginMenu + MatchRegistryClient).
+   - If client version < minSupportedVersion, user is blocked and must update.
+
+There is no "max version" in current design.
+- Newer clients are allowed.
+- Gate blocks only versions lower than minSupportedVersion.
+
+Practical examples
+------------------
+Example A: latest release, no forced migration yet
+- version=0.2.0
+- minSupportedVersion=0.2.0
+Result:
+- 0.2.0 allowed.
+- older than 0.2.0 blocked.
+
+Example B: publish 0.2.1 and force everyone to move
+- version=0.2.1
+- minSupportedVersion=0.2.1
+Result:
+- launcher updates to 0.2.1.
+- clients on 0.2.0 are blocked until updated.
+
+Example C: publish 0.2.1 but keep compatibility for 0.2.0 temporarily
+- version=0.2.1
+- minSupportedVersion=0.2.0
+Result:
+- launcher still updates to 0.2.1.
+- 0.2.0 clients can still pass login until you later raise minimum.
+
+Security notes
+--------------
+- Do not expose PERIBIND_RELEASE_ADMIN_TOKEN in chats/screenshots/logs.
+- Rotate token and DB password if leaked.
+- Launcher update is strict: non-HTTPS URL or empty/invalid sha256 will block update.

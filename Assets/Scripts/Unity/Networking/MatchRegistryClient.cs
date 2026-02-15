@@ -101,6 +101,84 @@ namespace Peribind.Unity.Networking
             return await SendJsonAsync(url, json);
         }
 
+        public async Task<ReleaseInfo> GetLatestReleaseAsync(string channel, string platform)
+        {
+            var safeChannel = string.IsNullOrWhiteSpace(channel) ? "stable" : channel.Trim();
+            var safePlatform = string.IsNullOrWhiteSpace(platform) ? "win64" : platform.Trim();
+            var url =
+                $"{baseUrl}/release/latest?channel={UnityWebRequest.EscapeURL(safeChannel)}&platform={UnityWebRequest.EscapeURL(safePlatform)}";
+            using var request = UnityWebRequest.Get(url);
+            await request.SendWebRequest();
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                if (request.responseCode != 404)
+                {
+                    Debug.LogWarning($"[MatchRegistry] Release lookup failed: {request.responseCode} {request.error}");
+                }
+                return null;
+            }
+
+            var json = request.downloadHandler.text;
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            return JsonUtility.FromJson<ReleaseInfo>(json);
+        }
+
+        public static bool IsVersionSupported(string currentVersion, string minSupportedVersion)
+        {
+            if (string.IsNullOrWhiteSpace(minSupportedVersion))
+            {
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(currentVersion))
+            {
+                return false;
+            }
+
+            return CompareVersions(currentVersion, minSupportedVersion) >= 0;
+        }
+
+        private static int CompareVersions(string left, string right)
+        {
+            var leftTokens = TokenizeVersion(left);
+            var rightTokens = TokenizeVersion(right);
+            var maxCount = Mathf.Max(leftTokens.Count, rightTokens.Count);
+
+            for (var i = 0; i < maxCount; i++)
+            {
+                var leftToken = i < leftTokens.Count ? leftTokens[i] : "0";
+                var rightToken = i < rightTokens.Count ? rightTokens[i] : "0";
+
+                var leftIsNumber = int.TryParse(leftToken, out var leftNumber);
+                var rightIsNumber = int.TryParse(rightToken, out var rightNumber);
+
+                if (leftIsNumber && rightIsNumber)
+                {
+                    if (leftNumber < rightNumber) return -1;
+                    if (leftNumber > rightNumber) return 1;
+                    continue;
+                }
+
+                var compare = string.Compare(leftToken, rightToken, StringComparison.OrdinalIgnoreCase);
+                if (compare != 0)
+                {
+                    return compare;
+                }
+            }
+
+            return 0;
+        }
+
+        private static List<string> TokenizeVersion(string version)
+        {
+            return new List<string>(version.Split(new[] { '.', '-', '_' }, StringSplitOptions.RemoveEmptyEntries));
+        }
+
         private static async Task<bool> SendJsonAsync(string url, string json)
         {
             using var request = BuildPostRequest(url, json);
@@ -153,6 +231,20 @@ namespace Peribind.Unity.Networking
             public int serverPort;
             public List<string> players;
             public long expiresAt;
+        }
+
+        [Serializable]
+        public class ReleaseInfo
+        {
+            public string channel;
+            public string platform;
+            public string version;
+            public string minSupportedVersion;
+            public string downloadUrl;
+            public string sha256;
+            public string notesUrl;
+            public long sizeBytes;
+            public string publishedAt;
         }
 
         [Serializable]

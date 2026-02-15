@@ -21,6 +21,9 @@ const REGISTRY_SELF_URL =
   process.env.PERIBIND_MATCH_REGISTRY_URL || `http://127.0.0.1:${PORT}`;
 const TTL_MS = Number(process.env.MATCH_TTL_MS || 6 * 60 * 60 * 1000); // 6h safety TTL
 const END_GRACE_MS = Number(process.env.MATCH_END_GRACE_MS || 30 * 1000);
+const RELEASE_ADMIN_TOKEN = process.env.PERIBIND_RELEASE_ADMIN_TOKEN || "";
+const RELEASE_DEFAULT_CHANNEL = process.env.PERIBIND_RELEASE_DEFAULT_CHANNEL || "stable";
+const RELEASE_DEFAULT_PLATFORM = process.env.PERIBIND_RELEASE_DEFAULT_PLATFORM || "win64";
 
 const pool = new Pool(buildPgConfig());
 
@@ -135,6 +138,75 @@ async function initDb() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_player_last_match_match_id ON player_last_match(match_id);
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS client_releases (
+      channel TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      version TEXT NOT NULL,
+      min_supported_version TEXT NOT NULL,
+      download_url TEXT NOT NULL,
+      sha256 TEXT NOT NULL DEFAULT '',
+      notes_url TEXT NOT NULL DEFAULT '',
+      size_bytes BIGINT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      PRIMARY KEY(channel, platform, version)
+    );
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_client_releases_track_active
+    ON client_releases(channel, platform, is_active, created_at DESC);
+  `);
+}
+
+function normalizeTrackValue(value, fallback) {
+  const normalized = String(value || fallback || "").trim().toLowerCase();
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function validateVersion(value) {
+  // Keep it simple and compatible with Unity Application.version values.
+  return typeof value === "string" && /^[0-9A-Za-z._-]{1,32}$/.test(value.trim());
+}
+
+function readAdminToken(req) {
+  const fromHeader = req.get("x-admin-token");
+  if (fromHeader && fromHeader.trim().length > 0) return fromHeader.trim();
+
+  const auth = req.get("authorization");
+  if (auth && auth.startsWith("Bearer ")) return auth.substring(7).trim();
+
+  return "";
+}
+
+function requireAdminToken(req, res) {
+  if (!RELEASE_ADMIN_TOKEN) {
+    res.status(503).json({ error: "release admin token is not configured" });
+    return false;
+  }
+
+  const token = readAdminToken(req);
+  if (!token || token !== RELEASE_ADMIN_TOKEN) {
+    res.status(401).json({ error: "unauthorized" });
+    return false;
+  }
+
+  return true;
+}
+
+function mapReleaseRow(row) {
+  return {
+    channel: row.channel,
+    platform: row.platform,
+    version: row.version,
+    minSupportedVersion: row.min_supported_version,
+    downloadUrl: row.download_url,
+    sha256: row.sha256 || "",
+    notesUrl: row.notes_url || "",
+    sizeBytes: Number(row.size_bytes || 0),
+    publishedAt: row.created_at
+  };
 }
 
 async function getMatchById(matchId) {
@@ -446,8 +518,100 @@ app.get("/health", async (_req, res) => {
     playersWithLastMatch: players.rows[0].players_with_last_match,
     activePorts: ports.rows.map((r) => Number(r.server_port)),
     reservedPorts: reservedPorts.size,
-    portRange: [PORT_MIN, PORT_MAX]
+    portRange: [PORT_MIN, PORT_MAX],
+    releaseDefaults: {
+      channel: RELEASE_DEFAULT_CHANNEL,
+      platform: RELEASE_DEFAULT_PLATFORM
+    }
   });
+});
+
+app.get("/release/latest", async (req, res) => {
+  const channel = normalizeTrackValue(req.query.channel, RELEASE_DEFAULT_CHANNEL);
+  const platform = normalizeTrackValue(req.query.platform, RELEASE_DEFAULT_PLATFORM);
+
+  const result = await pool.query(
+    `SELECT *
+     FROM client_releases
+     WHERE channel = $1
+       AND platform = $2
+       AND is_active = TRUE
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [channel, platform]
+  );
+
+  const row = result.rows[0];
+  if (!row) {
+    return res.status(404).json({ error: "not found" });
+  }
+
+  return res.json(mapReleaseRow(row));
+});
+
+app.post("/release/publish", async (req, res) => {
+  if (!requireAdminToken(req, res)) return;
+
+  const channel = normalizeTrackValue(req.body?.channel, RELEASE_DEFAULT_CHANNEL);
+  const platform = normalizeTrackValue(req.body?.platform, RELEASE_DEFAULT_PLATFORM);
+  const version = String(req.body?.version || "").trim();
+  const minSupportedVersion = String(req.body?.minSupportedVersion || "").trim();
+  const downloadUrl = String(req.body?.downloadUrl || "").trim();
+  const sha256 = String(req.body?.sha256 || "").trim().toLowerCase();
+  const notesUrl = String(req.body?.notesUrl || "").trim();
+  const sizeBytes = Number(req.body?.sizeBytes || 0);
+
+  if (!validateVersion(version)) {
+    return res.status(400).json({ error: "invalid version" });
+  }
+
+  if (!validateVersion(minSupportedVersion)) {
+    return res.status(400).json({ error: "invalid minSupportedVersion" });
+  }
+
+  if (!downloadUrl || !/^https?:\/\//i.test(downloadUrl)) {
+    return res.status(400).json({ error: "invalid downloadUrl" });
+  }
+
+  if (sha256 && !/^[a-f0-9]{64}$/.test(sha256)) {
+    return res.status(400).json({ error: "invalid sha256" });
+  }
+
+  if (!Number.isFinite(sizeBytes) || sizeBytes < 0) {
+    return res.status(400).json({ error: "invalid sizeBytes" });
+  }
+
+  await pool.query(
+    `UPDATE client_releases
+     SET is_active = FALSE
+     WHERE channel = $1
+       AND platform = $2
+       AND is_active = TRUE`,
+    [channel, platform]
+  );
+
+  const upsert = await pool.query(
+    `INSERT INTO client_releases(
+       channel, platform, version, min_supported_version,
+       download_url, sha256, notes_url, size_bytes, created_at, is_active
+     ) VALUES (
+       $1, $2, $3, $4,
+       $5, $6, $7, $8, NOW(), TRUE
+     )
+     ON CONFLICT(channel, platform, version)
+     DO UPDATE SET
+       min_supported_version = EXCLUDED.min_supported_version,
+       download_url = EXCLUDED.download_url,
+       sha256 = EXCLUDED.sha256,
+       notes_url = EXCLUDED.notes_url,
+       size_bytes = EXCLUDED.size_bytes,
+       created_at = NOW(),
+       is_active = TRUE
+     RETURNING *`,
+    [channel, platform, version, minSupportedVersion, downloadUrl, sha256, notesUrl, Math.floor(sizeBytes)]
+  );
+
+  return res.json(mapReleaseRow(upsert.rows[0]));
 });
 
 async function main() {

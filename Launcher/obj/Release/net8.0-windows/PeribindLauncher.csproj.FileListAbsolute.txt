@@ -1,0 +1,16 @@
+C:\Users\johny\Unity\Peribind\Launcher\bin\Release\net8.0-windows\PeribindLauncher.exe
+C:\Users\johny\Unity\Peribind\Launcher\bin\Release\net8.0-windows\PeribindLauncher.deps.json
+C:\Users\johny\Unity\Peribind\Launcher\bin\Release\net8.0-windows\PeribindLauncher.runtimeconfig.json
+C:\Users\johny\Unity\Peribind\Launcher\bin\Release\net8.0-windows\PeribindLauncher.dll
+C:\Users\johny\Unity\Peribind\Launcher\bin\Release\net8.0-windows\PeribindLauncher.pdb
+C:\Users\johny\Unity\Peribind\Launcher\obj\Release\net8.0-windows\PeribindLauncher.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\johny\Unity\Peribind\Launcher\obj\Release\net8.0-windows\PeribindLauncher.AssemblyInfoInputs.cache
+C:\Users\johny\Unity\Peribind\Launcher\obj\Release\net8.0-windows\PeribindLauncher.AssemblyInfo.cs
+C:\Users\johny\Unity\Peribind\Launcher\obj\Release\net8.0-windows\PeribindLauncher.csproj.CoreCompileInputs.cache
+C:\Users\johny\Unity\Peribind\Launcher\obj\Release\net8.0-windows\PeribindLauncher.sourcelink.json
+C:\Users\johny\Unity\Peribind\Launcher\obj\Release\net8.0-windows\PeribindLauncher.dll
+C:\Users\johny\Unity\Peribind\Launcher\obj\Release\net8.0-windows\refint\PeribindLauncher.dll
+C:\Users\johny\Unity\Peribind\Launcher\obj\Release\net8.0-windows\PeribindLauncher.pdb
+C:\Users\johny\Unity\Peribind\Launcher\obj\Release\net8.0-windows\PeribindLauncher.genruntimeconfig.cache
+C:\Users\johny\Unity\Peribind\Launcher\obj\Release\net8.0-windows\ref\PeribindLauncher.dll
+C:\Users\johny\Unity\Peribind\Launcher\bin\Release\net8.0-windows\launcher.config.json

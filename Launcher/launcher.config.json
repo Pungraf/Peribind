@@ -1,0 +1,8 @@
+{
+  "RegistryBaseUrl": "http://209.38.222.103:8080",
+  "Channel": "stable",
+  "Platform": "win64",
+  "InstallDirectory": "./game",
+  "GameExeRelativePath": "PeribindClient.exe",
+  "HttpTimeoutSeconds": 60
+}
