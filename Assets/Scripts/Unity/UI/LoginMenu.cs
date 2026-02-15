@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.InputSystem;
 
 namespace Peribind.Unity.UI
 {
@@ -69,9 +70,49 @@ namespace Peribind.Unity.UI
                 returnButton.onClick.AddListener(OnReturnToLoginClicked);
             }
 
+            SetPasswordMode(passwordInput);
+            SetPasswordMode(registerPasswordInput);
+            SetPasswordMode(registerConfirmPasswordInput);
+
             SetPanelState(showLogin: true);
             SetLoginInfo(string.Empty);
             SetRegisterInfo(string.Empty);
+            FocusInput(loginInput);
+        }
+
+        private void Update()
+        {
+            if (!IsLoginPanelActive())
+            {
+                return;
+            }
+
+            var selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
+            if (selected == null)
+            {
+                return;
+            }
+
+            if (Keyboard.current != null && Keyboard.current.tabKey.wasPressedThisFrame)
+            {
+                if (selected == loginInput?.gameObject)
+                {
+                    FocusInput(passwordInput);
+                }
+                else if (selected == passwordInput?.gameObject)
+                {
+                    FocusInput(loginInput);
+                }
+            }
+
+            if (Keyboard.current != null &&
+                (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.numpadEnterKey.wasPressedThisFrame))
+            {
+                if (selected == loginInput?.gameObject || selected == passwordInput?.gameObject)
+                {
+                    OnLoginClicked();
+                }
+            }
         }
 
         private void OnDestroy()
@@ -256,7 +297,7 @@ namespace Peribind.Unity.UI
             if (registerConfirmPasswordInput != null) registerConfirmPasswordInput.text = string.Empty;
             SetRegisterInfo(string.Empty);
             SetPanelState(showLogin: true);
-            ClearSelection();
+            FocusInput(loginInput);
         }
 
         private void ClearSelection()
@@ -309,6 +350,28 @@ namespace Peribind.Unity.UI
             }
         }
 
+        private bool IsLoginPanelActive()
+        {
+            return loginPanel == null || loginPanel.activeInHierarchy;
+        }
+
+        private void FocusInput(TMP_InputField input)
+        {
+            if (input == null)
+            {
+                return;
+            }
+
+            var eventSystem = EventSystem.current;
+            if (eventSystem != null)
+            {
+                eventSystem.SetSelectedGameObject(input.gameObject);
+            }
+
+            input.ActivateInputField();
+            input.MoveTextEnd(false);
+        }
+
         private void SetLoginInfo(string message)
         {
             if (loginInfoText != null)
@@ -323,6 +386,17 @@ namespace Peribind.Unity.UI
             {
                 registerInfoText.text = message ?? string.Empty;
             }
+        }
+
+        private static void SetPasswordMode(TMP_InputField input)
+        {
+            if (input == null)
+            {
+                return;
+            }
+
+            input.contentType = TMP_InputField.ContentType.Password;
+            input.ForceLabelUpdate();
         }
 
         private async System.Threading.Tasks.Task<bool> EnsureClientVersionAllowedAsync(System.Action<string> setInfo)

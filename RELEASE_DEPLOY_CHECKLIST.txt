@@ -1,0 +1,166 @@
+Peribind Release Deploy Checklist (Client + Server + Registry + Launcher)
+=========================================================================
+
+Purpose
+-------
+This checklist is the exact flow to release a new version (example: 0.2.0 -> 0.2.1).
+It tells you:
+- what to build
+- what files to move
+- where to run commands (LOCAL PC vs VPS)
+- how to get hash/size/version values for manifest publish
+
+
+Conventions
+-----------
+- [LOCAL] run on your Windows dev machine
+- [VPS] run on your Ubuntu server (SSH/Putty)
+
+
+0) Set target version
+---------------------
+[LOCAL]
+1. In Unity Player Settings, set Version = 0.2.1
+2. Build:
+   - Windows Client
+   - Linux Server
+   - Launcher (dotnet publish command below)
+
+
+1) Build artifacts (LOCAL)
+--------------------------
+Expected output paths (based on current project layout):
+- Client build folder: Build/Client/
+- Linux server build folder: Build/ServerLinux/
+- Launcher output: Build/Launcher/
+
+[LOCAL] build launcher:
+dotnet restore Launcher/PeribindLauncher.csproj -r win-x64
+dotnet publish Launcher/PeribindLauncher.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o Build/Launcher
+
+
+2) Package client for download (LOCAL)
+--------------------------------------
+Create zip from Build/Client contents:
+- required inside zip root:
+  - PeribindClient.exe
+  - PeribindClient_Data/
+
+Recommended zip name:
+- PeribindClient_0.2.1.zip
+
+[LOCAL] get SHA256:
+(Get-FileHash "C:\Users\johny\Unity\Peribind\Build\PeribindClient_0.2.1.zip" -Algorithm SHA256).Hash.ToLower()
+
+[LOCAL] get size bytes:
+(Get-Item "C:\Users\johny\Unity\Peribind\Build\PeribindClient_0.2.1.zip").Length
+
+Save both values for step 7.
+
+
+3) Files that must be migrated to VPS
+-------------------------------------
+A) Download package hosting:
+- /var/www/peribind/downloads/PeribindClient_0.2.1.zip
+
+B) Patch notes:
+- /var/www/peribind/patch-notes/0.2.1.html
+
+C) Dedicated server runtime (if gameplay/server code changed):
+- /opt/peribind-server/PeribindServer
+- /opt/peribind-server/PeribindServer_Data/
+
+D) Match registry service code (if allocator/registry API changed):
+- /opt/match-registry/server.js
+- /opt/match-registry/package.json (if changed)
+- /opt/match-registry/package-lock.json (if changed)
+
+E) Launcher for distribution to players:
+- Build/Launcher/* (share this package with players)
+
+
+4) Upload and apply server-side binaries (VPS)
+----------------------------------------------
+If server build changed:
+
+[VPS] stop old match processes during maintenance window:
+pgrep -af PeribindServer
+pkill -f /opt/peribind-server/PeribindServer
+
+[VPS] after upload:
+chmod +x /opt/peribind-server/PeribindServer
+ls -lah /opt/peribind-server
+
+
+5) Restart registry service if code/env changed (VPS)
+-----------------------------------------------------
+[VPS]
+cd /opt/match-registry
+npm ci
+systemctl daemon-reload
+systemctl restart match-registry.service
+systemctl status match-registry.service --no-pager -l
+curl http://127.0.0.1:8080/health
+
+
+6) Verify hosted files (VPS and LOCAL)
+--------------------------------------
+[VPS] check file presence:
+ls -lah /var/www/peribind/downloads/PeribindClient_0.2.1.zip
+ls -lah /var/www/peribind/patch-notes/0.2.1.html
+
+[LOCAL] check public links:
+curl -I https://download.peribind.com/downloads/PeribindClient_0.2.1.zip
+curl -I https://download.peribind.com/patch-notes/0.2.1.html
+
+
+7) Publish release manifest (VPS)
+---------------------------------
+Use real SHA256 and sizeBytes from step 2.
+
+[VPS]
+curl -X POST http://127.0.0.1:8080/release/publish \
+  -H "Content-Type: application/json" \
+  -H "x-admin-token: <PERIBIND_RELEASE_ADMIN_TOKEN>" \
+  -d '{"channel":"stable","platform":"win64","version":"0.2.1","minSupportedVersion":"0.2.1","downloadUrl":"https://download.peribind.com/downloads/PeribindClient_0.2.1.zip","sha256":"<SHA256_HEX_64>","notesUrl":"https://download.peribind.com/patch-notes/0.2.1.html","sizeBytes":<SIZE_BYTES>}'
+
+[VPS] verify manifest:
+curl "http://127.0.0.1:8080/release/latest?channel=stable&platform=win64"
+
+
+8) End-to-end validation
+------------------------
+[LOCAL]
+1. Use clean test folder with launcher.
+2. Run PeribindLauncher.exe.
+3. Confirm:
+   - update is detected
+   - MB/total/ETA visible
+   - download completes
+   - hash verification passes
+   - game starts
+   - login works
+
+
+9) Rollback procedure (quick)
+-----------------------------
+If bad release is published:
+
+[VPS] republish previous known-good version:
+curl -X POST http://127.0.0.1:8080/release/publish \
+  -H "Content-Type: application/json" \
+  -H "x-admin-token: <PERIBIND_RELEASE_ADMIN_TOKEN>" \
+  -d '{"channel":"stable","platform":"win64","version":"0.2.0","minSupportedVersion":"0.2.0","downloadUrl":"https://download.peribind.com/downloads/PeribindClient_0.2.0.zip","sha256":"<OLD_SHA256>","notesUrl":"https://download.peribind.com/patch-notes/0.2.0.html","sizeBytes":58182703}'
+
+
+10) Where to get required values quickly
+----------------------------------------
+- version: Unity Player Settings (Version field)
+- minSupportedVersion: release policy decision
+  - strict rollout: same as version (0.2.1)
+  - compatibility window: keep lower temporarily (e.g. 0.2.0)
+- sha256: PowerShell Get-FileHash
+- sizeBytes: PowerShell Get-Item .Length
+- downloadUrl: your hosted zip link on download.peribind.com
+- notesUrl: your hosted patch notes link
+

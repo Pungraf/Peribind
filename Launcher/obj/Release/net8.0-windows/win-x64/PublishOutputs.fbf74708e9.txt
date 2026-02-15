@@ -1,3 +1,8 @@
 C:\Users\johny\Unity\Peribind\Build\Launcher\PeribindLauncher.pdb
 C:\Users\johny\Unity\Peribind\Build\Launcher\launcher.config.json
+C:\Users\johny\Unity\Peribind\Build\Launcher\D3DCompiler_47_cor3.dll
+C:\Users\johny\Unity\Peribind\Build\Launcher\PenImc_cor3.dll
+C:\Users\johny\Unity\Peribind\Build\Launcher\PresentationNative_cor3.dll
+C:\Users\johny\Unity\Peribind\Build\Launcher\vcruntime140_cor3.dll
+C:\Users\johny\Unity\Peribind\Build\Launcher\wpfgfx_cor3.dll
 C:\Users\johny\Unity\Peribind\Build\Launcher\PeribindLauncher.exe

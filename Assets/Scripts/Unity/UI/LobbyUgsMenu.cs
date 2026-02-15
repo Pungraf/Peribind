@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 using Peribind.Unity.Networking;
 using Unity.Services.Lobbies.Models;
 using Unity.Services.Authentication;
@@ -17,9 +18,9 @@ namespace Peribind.Unity.UI
         [Header("Create")]
         [SerializeField] private TMP_InputField lobbyNameInput;
         [SerializeField] private TMP_InputField mapInput;
-        [SerializeField] private TMP_InputField modeInput;
-        [SerializeField] private TMP_InputField regionInput;
         [SerializeField] private Button createButton;
+        [SerializeField] private Button returnButton;
+        [SerializeField] private string starterSceneName = "StarterScene";
 
         [Header("Join")]
         [SerializeField] private TMP_InputField joinCodeInput;
@@ -60,6 +61,7 @@ namespace Peribind.Unity.UI
             }
 
             if (createButton != null) createButton.onClick.AddListener(OnCreateClicked);
+            if (returnButton != null) returnButton.onClick.AddListener(OnReturnClicked);
             if (joinCodeButton != null) joinCodeButton.onClick.AddListener(OnJoinCodeClicked);
             if (refreshButton != null) refreshButton.onClick.AddListener(OnRefreshClicked);
             if (exitButton != null) exitButton.onClick.AddListener(OnExitClicked);
@@ -115,6 +117,7 @@ namespace Peribind.Unity.UI
         private void OnDestroy()
         {
             if (createButton != null) createButton.onClick.RemoveListener(OnCreateClicked);
+            if (returnButton != null) returnButton.onClick.RemoveListener(OnReturnClicked);
             if (joinCodeButton != null) joinCodeButton.onClick.RemoveListener(OnJoinCodeClicked);
             if (refreshButton != null) refreshButton.onClick.RemoveListener(OnRefreshClicked);
             if (exitButton != null) exitButton.onClick.RemoveListener(OnExitClicked);
@@ -136,8 +139,21 @@ namespace Peribind.Unity.UI
             var name = lobbyNameInput != null && !string.IsNullOrWhiteSpace(lobbyNameInput.text)
                 ? lobbyNameInput.text
                 : "Match";
-            await lobbyService.CreateLobbyAsync(name, 2, GetText(mapInput), GetText(modeInput), GetText(regionInput));
+            await lobbyService.CreateLobbyAsync(name, 2, GetText(mapInput), string.Empty, string.Empty);
             await RefreshLobbyListAsync();
+        }
+
+        private async void OnReturnClicked()
+        {
+            if (lobbyService != null && lobbyService.CurrentLobby != null)
+            {
+                await lobbyService.LeaveLobbyAsync();
+            }
+
+            if (!string.IsNullOrWhiteSpace(starterSceneName))
+            {
+                SceneManager.LoadScene(starterSceneName);
+            }
         }
 
         private async void OnJoinCodeClicked()
@@ -244,11 +260,8 @@ namespace Peribind.Unity.UI
                 var label = row.GetComponentInChildren<TMP_Text>(true);
                 if (label != null)
                 {
-                    var map = lobby.Data != null && lobby.Data.TryGetValue("map", out var mapObj) ? mapObj.Value : "";
-                    var mode = lobby.Data != null && lobby.Data.TryGetValue("mode", out var modeObj) ? modeObj.Value : "";
-                    var region = lobby.Data != null && lobby.Data.TryGetValue("region", out var regionObj) ? regionObj.Value : "";
-                    var youText = isMember ? " | You" : string.Empty;
-                    label.text = $"{lobby.Name} | {lobby.Players.Count}/{lobby.MaxPlayers} | {map}/{mode}/{region}{youText} | Code: {lobby.LobbyCode}";
+                    var playerCount = lobby.Players != null ? lobby.Players.Count : 0;
+                    label.text = $"{lobby.Name} | {playerCount}/{lobby.MaxPlayers} | Code: {lobby.LobbyCode}";
                 }
 
                 row.onClick.AddListener(() => OnLobbyRowClicked(lobby, isMember));
@@ -359,7 +372,7 @@ namespace Peribind.Unity.UI
             _nextAllowedListRefreshTime = Time.unscaledTime + ListRefreshCooldownSeconds;
             try
             {
-                await lobbyService.QueryLobbiesAsync(GetText(mapInput), GetText(modeInput), GetText(regionInput));
+                await lobbyService.QueryLobbiesAsync(GetText(mapInput), string.Empty, string.Empty);
             }
             finally
             {

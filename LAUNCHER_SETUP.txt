@@ -5,6 +5,12 @@ Overview
 --------
 The launcher checks Match Registry release manifest and updates local game files before start.
 It expects release files in ZIP format.
+Launcher UI shows:
+- current status
+- download progress
+- downloaded MB / total MB + ETA during download
+- patch notes link (when notesUrl is provided)
+- Play and Retry buttons
 
 Files
 -----
@@ -22,6 +28,14 @@ From repository root:
 Result:
 - Build/Launcher/PeribindLauncher.exe
 - Build/Launcher/launcher.config.json (copy from Launcher/launcher.config.json)
+
+Runtime behavior
+----------------
+1) Launcher window opens and checks latest release.
+2) If update is needed, it downloads and installs with progress bar.
+3) If notesUrl exists, "Patch notes" link is visible.
+4) Click "Play" to start game.
+5) Click "Retry" after any error or network issue.
 
 Important packaging rule
 ------------------------
