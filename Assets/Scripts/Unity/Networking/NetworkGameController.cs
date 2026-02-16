@@ -489,7 +489,7 @@ namespace Peribind.Unity.Networking
             s_clientToPlayerId.Remove(clientId);
             if (!s_clientToAuthId.TryGetValue(clientId, out var authId))
             {
-                if (IsServer && _session != null && _session.IsGameOver && GetActiveClientCount() == 0)
+                if (IsServer && _session != null && _session.IsGameOver && GetActiveClientCount() == 0 && !IsDedicatedServerRuntime())
                 {
                     ResetMatchState();
                 }
@@ -498,7 +498,7 @@ namespace Peribind.Unity.Networking
 
             s_clientToAuthId.Remove(clientId);
 
-            if (IsServer && _session != null && _session.IsGameOver && GetActiveClientCount() == 0)
+            if (IsServer && _session != null && _session.IsGameOver && GetActiveClientCount() == 0 && !IsDedicatedServerRuntime())
             {
                 ResetMatchState();
             }
@@ -923,6 +923,22 @@ namespace Peribind.Unity.Networking
             return false;
         }
 
+        public static bool TryGetConnectedAuthId(ulong clientId, out string authId)
+        {
+            if (s_clientToAuthId.TryGetValue(clientId, out authId) && !string.IsNullOrWhiteSpace(authId))
+            {
+                return true;
+            }
+
+            authId = string.Empty;
+            return false;
+        }
+
+        public static Dictionary<string, int> GetAuthPlayerAssignmentsSnapshot()
+        {
+            return new Dictionary<string, int>(s_authToPlayerId);
+        }
+
         private string GetLocalAuthId()
         {
             if (!TryGetLocalAuthId(out var authId))
@@ -960,6 +976,15 @@ namespace Peribind.Unity.Networking
             {
                 return false;
             }
+        }
+
+        private static bool IsDedicatedServerRuntime()
+        {
+#if UNITY_SERVER
+            return true;
+#else
+            return global::UnityEngine.Application.isBatchMode;
+#endif
         }
 
         private void RejectAction(ulong clientId, string reason)

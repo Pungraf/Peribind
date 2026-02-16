@@ -4,8 +4,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.Services.Authentication;
 using Unity.Services.Core;
-using Unity.Services.Lobbies;
-using Unity.Services.Lobbies.Models;
 using UnityEngine;
 
 namespace Peribind.Unity.Networking
@@ -13,19 +11,16 @@ namespace Peribind.Unity.Networking
     public class LobbyServiceController : MonoBehaviour
     {
         [SerializeField] private UgsBootstrap ugsBootstrap;
-        [SerializeField] private float heartbeatIntervalSeconds = 15f;
-        [SerializeField] private float lobbyRefreshIntervalSeconds = 8f;
-        [SerializeField] private int writeRateLimitRetryCount = 4;
-        [SerializeField] private float writeRateLimitRetryDelaySeconds = 1.0f;
+        [SerializeField] private MatchRegistryClient matchRegistry;
+        [SerializeField] private float lobbyRefreshIntervalSeconds = 2.5f;
         [SerializeField] private int queryRetryCount = 1;
-        [SerializeField] private float queryRetryDelaySeconds = 1.0f;
+        [SerializeField] private float queryRetryDelaySeconds = 0.75f;
 
-        public Lobby CurrentLobby { get; private set; }
-        public event Action<Lobby> LobbyUpdated;
-        public event Action<List<Lobby>> LobbiesQueried;
+        public MatchRegistryClient.LobbyInfo CurrentLobby { get; private set; }
+        public event Action<MatchRegistryClient.LobbyInfo> LobbyUpdated;
+        public event Action<List<MatchRegistryClient.LobbyInfo>> LobbiesQueried;
         public event Action<string> LobbyError;
 
-        private Coroutine _heartbeatRoutine;
         private Coroutine _refreshRoutine;
 
         private async void Awake()
@@ -35,13 +30,18 @@ namespace Peribind.Unity.Networking
                 ugsBootstrap = FindObjectOfType<UgsBootstrap>();
             }
 
+            if (matchRegistry == null)
+            {
+                matchRegistry = FindObjectOfType<MatchRegistryClient>();
+            }
+
             if (ugsBootstrap != null)
             {
                 await ugsBootstrap.EnsureInitializedAsync();
             }
         }
 
-        public async Task<Lobby> CreateLobbyAsync(string lobbyName, int maxPlayers, string map, string mode, string region)
+        public async Task<MatchRegistryClient.LobbyInfo> CreateLobbyAsync(string lobbyName, int maxPlayers, string map, string mode, string region)
         {
             if (!await EnsureLobbyReadyAsync())
             {
@@ -50,169 +50,114 @@ namespace Peribind.Unity.Networking
 
             try
             {
-                var lobbyData = new Dictionary<string, DataObject>
+                var lobby = await matchRegistry.CreateLobbyAsync(GetLocalPlayerId(), lobbyName, maxPlayers, map, mode, region);
+                if (lobby == null)
                 {
-                    ["map"] = new DataObject(DataObject.VisibilityOptions.Public, map ?? string.Empty, DataObject.IndexOptions.S1),
-                    ["mode"] = new DataObject(DataObject.VisibilityOptions.Public, mode ?? string.Empty, DataObject.IndexOptions.S2),
-                    ["region"] = new DataObject(DataObject.VisibilityOptions.Public, region ?? string.Empty, DataObject.IndexOptions.S3),
-                };
-
-                var player = BuildPlayer();
-                CurrentLobby = await LobbyService.Instance.CreateLobbyAsync(
-                    lobbyName,
-                    maxPlayers,
-                    new CreateLobbyOptions
-                    {
-                        IsPrivate = false,
-                        Data = lobbyData,
-                        Player = player
-                    });
-
-                StartHeartbeat();
-                StartRefresh();
-                LobbyUpdated?.Invoke(CurrentLobby);
-                return CurrentLobby;
-            }
-            catch (Exception ex)
-            {
-                LobbyError?.Invoke(ex.Message);
-                Debug.LogWarning($"[Lobby] Create failed: {ex.Message}");
-                return null;
-            }
-        }
-
-        public async Task<Lobby> JoinLobbyByCodeAsync(string code)
-        {
-            if (!await EnsureLobbyReadyAsync())
-            {
-                return null;
-            }
-
-            try
-            {
-                var player = BuildPlayer();
-                CurrentLobby = await LobbyService.Instance.JoinLobbyByCodeAsync(code, new JoinLobbyByCodeOptions
-                {
-                    Player = player
-                });
-
-                StopHeartbeat();
-                StartRefresh();
-                LobbyUpdated?.Invoke(CurrentLobby);
-                return CurrentLobby;
-            }
-            catch (Exception ex)
-            {
-                LobbyError?.Invoke(ex.Message);
-                Debug.LogWarning($"[Lobby] Join by code failed: {ex.Message}");
-                return null;
-            }
-        }
-
-        public async Task<Lobby> JoinLobbyByIdAsync(string lobbyId)
-        {
-            if (!await EnsureLobbyReadyAsync())
-            {
-                return null;
-            }
-
-            try
-            {
-                var player = BuildPlayer();
-                CurrentLobby = await LobbyService.Instance.JoinLobbyByIdAsync(lobbyId, new JoinLobbyByIdOptions
-                {
-                    Player = player
-                });
-
-                StopHeartbeat();
-                StartRefresh();
-                LobbyUpdated?.Invoke(CurrentLobby);
-                return CurrentLobby;
-            }
-            catch (Exception ex)
-            {
-                LobbyError?.Invoke(ex.Message);
-                Debug.LogWarning($"[Lobby] Join by id failed: {ex.Message}");
-                return null;
-            }
-        }
-
-        public async Task<Lobby> GetLobbyByIdAsync(string lobbyId)
-        {
-            if (!await EnsureLobbyReadyAsync())
-            {
-                return null;
-            }
-
-            try
-            {
-                CurrentLobby = await LobbyService.Instance.GetLobbyAsync(lobbyId);
-                StartRefresh();
-                LobbyUpdated?.Invoke(CurrentLobby);
-                return CurrentLobby;
-            }
-            catch (Exception ex)
-            {
-                LobbyError?.Invoke(ex.Message);
-                Debug.LogWarning($"[Lobby] Get lobby failed: {ex.Message}");
-                return null;
-            }
-        }
-
-        public async Task<Lobby> QuickJoinAsync(string map, string mode, string region)
-        {
-            if (!await EnsureLobbyReadyAsync())
-            {
-                return null;
-            }
-
-            try
-            {
-                var filters = new List<QueryFilter>
-                {
-                    new QueryFilter(QueryFilter.FieldOptions.AvailableSlots, "0", QueryFilter.OpOptions.GT),
-                };
-
-                if (!string.IsNullOrWhiteSpace(map))
-                {
-                    filters.Add(new QueryFilter(QueryFilter.FieldOptions.S1, map, QueryFilter.OpOptions.EQ));
+                    LobbyError?.Invoke(ResolveLobbyError("Failed to create lobby."));
+                    return null;
                 }
 
-                if (!string.IsNullOrWhiteSpace(mode))
-                {
-                    filters.Add(new QueryFilter(QueryFilter.FieldOptions.S2, mode, QueryFilter.OpOptions.EQ));
-                }
-
-                if (!string.IsNullOrWhiteSpace(region))
-                {
-                    filters.Add(new QueryFilter(QueryFilter.FieldOptions.S3, region, QueryFilter.OpOptions.EQ));
-                }
-
-                var player = BuildPlayer();
-                CurrentLobby = await LobbyService.Instance.QuickJoinLobbyAsync(new QuickJoinLobbyOptions
-                {
-                    Filter = filters,
-                    Player = player
-                });
-
-                StopHeartbeat();
+                CurrentLobby = lobby;
                 StartRefresh();
                 LobbyUpdated?.Invoke(CurrentLobby);
                 return CurrentLobby;
             }
-            catch (LobbyServiceException ex)
+            catch (Exception ex)
             {
                 LobbyError?.Invoke(ex.Message);
-                Debug.LogWarning($"[Lobby] QuickJoin failed: {ex.Message}");
                 return null;
             }
         }
 
-        public async Task<List<Lobby>> QueryLobbiesAsync(string map, string mode, string region)
+        public async Task<MatchRegistryClient.LobbyInfo> JoinLobbyByCodeAsync(string code)
         {
             if (!await EnsureLobbyReadyAsync())
             {
-                return new List<Lobby>();
+                return null;
+            }
+
+            try
+            {
+                var lobby = await matchRegistry.JoinLobbyByCodeAsync(GetLocalPlayerId(), code);
+                if (lobby == null)
+                {
+                    LobbyError?.Invoke(ResolveLobbyError("Failed to join lobby by code."));
+                    return null;
+                }
+
+                CurrentLobby = lobby;
+                StartRefresh();
+                LobbyUpdated?.Invoke(CurrentLobby);
+                return CurrentLobby;
+            }
+            catch (Exception ex)
+            {
+                LobbyError?.Invoke(ex.Message);
+                return null;
+            }
+        }
+
+        public async Task<MatchRegistryClient.LobbyInfo> JoinLobbyByIdAsync(string lobbyId)
+        {
+            if (!await EnsureLobbyReadyAsync())
+            {
+                return null;
+            }
+
+            try
+            {
+                var lobby = await matchRegistry.JoinLobbyByIdAsync(GetLocalPlayerId(), lobbyId);
+                if (lobby == null)
+                {
+                    LobbyError?.Invoke(ResolveLobbyError("Failed to join lobby."));
+                    return null;
+                }
+
+                CurrentLobby = lobby;
+                StartRefresh();
+                LobbyUpdated?.Invoke(CurrentLobby);
+                return CurrentLobby;
+            }
+            catch (Exception ex)
+            {
+                LobbyError?.Invoke(ex.Message);
+                return null;
+            }
+        }
+
+        public async Task<MatchRegistryClient.LobbyInfo> GetLobbyByIdAsync(string lobbyId)
+        {
+            if (!await EnsureLobbyReadyAsync())
+            {
+                return null;
+            }
+
+            try
+            {
+                var lobby = await matchRegistry.GetLobbyByIdAsync(lobbyId);
+                if (lobby == null)
+                {
+                    LobbyError?.Invoke(ResolveLobbyError("Lobby not found."));
+                    return null;
+                }
+
+                CurrentLobby = lobby;
+                StartRefresh();
+                LobbyUpdated?.Invoke(CurrentLobby);
+                return CurrentLobby;
+            }
+            catch (Exception ex)
+            {
+                LobbyError?.Invoke(ex.Message);
+                return null;
+            }
+        }
+
+        public async Task<List<MatchRegistryClient.LobbyInfo>> QueryLobbiesAsync(string map, string mode, string region)
+        {
+            if (!await EnsureLobbyReadyAsync())
+            {
+                return new List<MatchRegistryClient.LobbyInfo>();
             }
 
             var attempts = Mathf.Max(1, queryRetryCount + 1);
@@ -220,70 +165,26 @@ namespace Peribind.Unity.Networking
             {
                 try
                 {
-                    var filters = new List<QueryFilter>();
-
-                    if (!string.IsNullOrWhiteSpace(map))
-                    {
-                        filters.Add(new QueryFilter(QueryFilter.FieldOptions.S1, map, QueryFilter.OpOptions.EQ));
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(mode))
-                    {
-                        filters.Add(new QueryFilter(QueryFilter.FieldOptions.S2, mode, QueryFilter.OpOptions.EQ));
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(region))
-                    {
-                        filters.Add(new QueryFilter(QueryFilter.FieldOptions.S3, region, QueryFilter.OpOptions.EQ));
-                    }
-
-                    var response = await LobbyService.Instance.QueryLobbiesAsync(new QueryLobbiesOptions
-                    {
-                        Filters = filters,
-                        Count = 25
-                    });
-
-                    var results = response.Results ?? new List<Lobby>();
+                    var lobbies = await matchRegistry.QueryLobbiesAsync(map, mode, region);
+                    var results = lobbies ?? new List<MatchRegistryClient.LobbyInfo>();
                     LobbiesQueried?.Invoke(results);
                     return results;
                 }
-                catch (LobbyServiceException ex) when (ex.Reason == LobbyExceptionReason.RateLimited)
+                catch (Exception ex)
                 {
-                    if (attempt >= attempts)
+                    if (attempt < attempts)
                     {
-                        Debug.LogWarning("[Lobby] Query rate-limited.");
-                        return new List<Lobby>();
-                    }
-
-                    var wait = Mathf.Max(0.2f, queryRetryDelaySeconds) * attempt;
-                    Debug.LogWarning($"[Lobby] Query rate-limited, retrying in {wait:0.0}s (attempt {attempt}/{attempts}).");
-                    await Task.Delay(TimeSpan.FromSeconds(wait));
-                }
-                catch (LobbyServiceException ex)
-                {
-                    var transient = ex.Message != null &&
-                                    ex.Message.IndexOf("Internal Server Error", StringComparison.OrdinalIgnoreCase) >= 0;
-                    if (transient && attempt < attempts)
-                    {
-                        var wait = Mathf.Max(0.2f, queryRetryDelaySeconds) * attempt;
-                        Debug.LogWarning($"[Lobby] Query transient backend error ({ex.Reason}), retrying in {wait:0.0}s (attempt {attempt}/{attempts}).");
+                        var wait = Mathf.Max(0.15f, queryRetryDelaySeconds) * attempt;
                         await Task.Delay(TimeSpan.FromSeconds(wait));
                         continue;
                     }
 
                     LobbyError?.Invoke(ex.Message);
-                    Debug.LogWarning($"[Lobby] Query failed ({ex.Reason}): {ex.Message}");
-                    return new List<Lobby>();
-                }
-                catch (Exception ex)
-                {
-                    LobbyError?.Invoke(ex.Message);
-                    Debug.LogWarning($"[Lobby] Query failed: {ex.Message}");
-                    return new List<Lobby>();
+                    return new List<MatchRegistryClient.LobbyInfo>();
                 }
             }
 
-            return new List<Lobby>();
+            return new List<MatchRegistryClient.LobbyInfo>();
         }
 
         public async Task LeaveLobbyAsync()
@@ -293,115 +194,98 @@ namespace Peribind.Unity.Networking
                 return;
             }
 
-            if (CurrentLobby == null)
+            if (CurrentLobby == null || string.IsNullOrWhiteSpace(CurrentLobby.id))
             {
                 return;
             }
 
             try
             {
-                StopHeartbeat();
                 StopRefresh();
-                await LobbyService.Instance.RemovePlayerAsync(CurrentLobby.Id, AuthenticationService.Instance.PlayerId);
-                CurrentLobby = null;
-                LobbyUpdated?.Invoke(null);
+                await matchRegistry.LeaveLobbyAsync(CurrentLobby.id, GetLocalPlayerId());
             }
             catch (Exception ex)
             {
                 LobbyError?.Invoke(ex.Message);
-                Debug.LogWarning($"[Lobby] Leave failed: {ex.Message}");
+            }
+            finally
+            {
+                CurrentLobby = null;
+                LobbyUpdated?.Invoke(null);
             }
         }
 
-        public async Task<Lobby> SetPlayerReadyAsync(bool isReady)
+        public async Task<MatchRegistryClient.LobbyInfo> SetPlayerReadyAsync(bool isReady)
         {
             if (!await EnsureLobbyReadyAsync())
             {
                 return null;
             }
 
-            if (CurrentLobby == null)
+            if (CurrentLobby == null || string.IsNullOrWhiteSpace(CurrentLobby.id))
             {
                 return null;
             }
 
-            var data = new Dictionary<string, PlayerDataObject>
+            try
             {
-                ["ready"] = new PlayerDataObject(PlayerDataObject.VisibilityOptions.Member, isReady ? "1" : "0")
-            };
-
-            var result = await ExecuteLobbyWriteWithRetryAsync(
-                () => LobbyService.Instance.UpdatePlayerAsync(
-                    CurrentLobby.Id,
-                    AuthenticationService.Instance.PlayerId,
-                    new UpdatePlayerOptions
-                    {
-                        Data = data
-                    }),
-                "Set ready");
-
-            if (result != null)
-            {
-                CurrentLobby = result;
-                LobbyUpdated?.Invoke(CurrentLobby);
-            }
-
-            return result;
-        }
-
-        public async Task<Lobby> SetServerInfoAsync(string serverIp, int serverPort, string matchId)
-        {
-            if (!await EnsureLobbyReadyAsync())
-            {
-                return null;
-            }
-
-            if (CurrentLobby == null)
-            {
-                return null;
-            }
-
-            var data = new Dictionary<string, DataObject>
-            {
-                ["server_ip"] = new DataObject(DataObject.VisibilityOptions.Public, serverIp ?? string.Empty),
-                ["server_port"] = new DataObject(DataObject.VisibilityOptions.Public, serverPort.ToString()),
-                ["match_id"] = new DataObject(DataObject.VisibilityOptions.Public, matchId ?? string.Empty)
-            };
-
-            var result = await ExecuteLobbyWriteWithRetryAsync(
-                () => LobbyService.Instance.UpdateLobbyAsync(CurrentLobby.Id, new UpdateLobbyOptions
+                var updated = await matchRegistry.SetPlayerReadyAsync(CurrentLobby.id, GetLocalPlayerId(), isReady);
+                if (updated != null)
                 {
-                    Data = data
-                }),
-                "Set server info");
+                    CurrentLobby = updated;
+                    LobbyUpdated?.Invoke(CurrentLobby);
+                }
+                else
+                {
+                    LobbyError?.Invoke(ResolveLobbyError("Failed to update ready state."));
+                }
 
-            if (result != null)
+                return updated;
+            }
+            catch (Exception ex)
             {
-                CurrentLobby = result;
-                LobbyUpdated?.Invoke(CurrentLobby);
+                LobbyError?.Invoke(ex.Message);
+                return null;
+            }
+        }
+
+        public async Task<MatchRegistryClient.LobbyInfo> SetServerInfoAsync(string serverIp, int serverPort, string matchId)
+        {
+            if (!await EnsureLobbyReadyAsync())
+            {
+                return null;
             }
 
-            return result;
-        }
-
-        private Player BuildPlayer()
-        {
-            return new Player(AuthenticationService.Instance.PlayerId);
-        }
-
-        private void StartHeartbeat()
-        {
-            StopHeartbeat();
-            _heartbeatRoutine = StartCoroutine(HeartbeatRoutine());
-        }
-
-        private void StopHeartbeat()
-        {
-            if (_heartbeatRoutine != null)
+            if (CurrentLobby == null || string.IsNullOrWhiteSpace(CurrentLobby.id))
             {
-                StopCoroutine(_heartbeatRoutine);
-                _heartbeatRoutine = null;
+                return null;
             }
+
+            try
+            {
+                var updated = await matchRegistry.SetServerInfoAsync(CurrentLobby.id, GetLocalPlayerId(), serverIp, serverPort, matchId);
+                if (updated != null)
+                {
+                    CurrentLobby = updated;
+                    LobbyUpdated?.Invoke(CurrentLobby);
+                }
+                else
+                {
+                    LobbyError?.Invoke(ResolveLobbyError("Failed to publish server info."));
+                }
+
+                return updated;
+            }
+            catch (Exception ex)
+            {
+                LobbyError?.Invoke(ex.Message);
+                return null;
+            }
+        }
+
+        public void PauseLobbyRefresh()
+        {
+            StopRefresh();
         }
 
         private void StartRefresh()
@@ -419,32 +303,17 @@ namespace Peribind.Unity.Networking
             }
         }
 
-        public void PauseLobbyRefresh()
+        private IEnumerator RefreshRoutine()
         {
-            StopRefresh();
-        }
-
-        private IEnumerator HeartbeatRoutine()
-        {
-            while (CurrentLobby != null)
+            while (CurrentLobby != null && !string.IsNullOrWhiteSpace(CurrentLobby.id))
             {
-                yield return new WaitForSecondsRealtime(heartbeatIntervalSeconds);
-                if (CurrentLobby == null)
+                yield return new WaitForSecondsRealtime(lobbyRefreshIntervalSeconds);
+                if (CurrentLobby == null || string.IsNullOrWhiteSpace(CurrentLobby.id))
                 {
                     continue;
                 }
 
-                _ = SendHeartbeatAsync(CurrentLobby.Id);
-            }
-        }
-
-        private IEnumerator RefreshRoutine()
-        {
-            while (CurrentLobby != null)
-            {
-                yield return new WaitForSecondsRealtime(lobbyRefreshIntervalSeconds);
-                if (CurrentLobby == null) continue;
-                _ = RefreshLobbyAsync(CurrentLobby.Id);
+                _ = RefreshLobbyAsync(CurrentLobby.id);
             }
         }
 
@@ -452,28 +321,21 @@ namespace Peribind.Unity.Networking
         {
             try
             {
-                var refreshed = await LobbyService.Instance.GetLobbyAsync(lobbyId);
-                if (refreshed != null)
+                var refreshed = await matchRegistry.GetLobbyByIdAsync(lobbyId);
+                if (refreshed == null)
                 {
-                    CurrentLobby = refreshed;
-                    LobbyUpdated?.Invoke(CurrentLobby);
+                    CurrentLobby = null;
+                    StopRefresh();
+                    LobbyUpdated?.Invoke(null);
+                    return;
                 }
+
+                CurrentLobby = refreshed;
+                LobbyUpdated?.Invoke(CurrentLobby);
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"[Lobby] Refresh failed: {ex.Message}");
-            }
-        }
-
-        private async Task SendHeartbeatAsync(string lobbyId)
-        {
-            try
-            {
-                await LobbyService.Instance.SendHeartbeatPingAsync(lobbyId);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[Lobby] Heartbeat failed: {ex.Message}");
             }
         }
 
@@ -482,6 +344,11 @@ namespace Peribind.Unity.Networking
             if (ugsBootstrap == null)
             {
                 ugsBootstrap = FindObjectOfType<UgsBootstrap>();
+            }
+
+            if (matchRegistry == null)
+            {
+                matchRegistry = FindObjectOfType<MatchRegistryClient>();
             }
 
             if (ugsBootstrap != null)
@@ -509,42 +376,66 @@ namespace Peribind.Unity.Networking
                 return false;
             }
 
+            if (matchRegistry == null)
+            {
+                LobbyError?.Invoke("Match registry client is missing.");
+                return false;
+            }
+
             return true;
         }
 
-        private async Task<Lobby> ExecuteLobbyWriteWithRetryAsync(Func<Task<Lobby>> action, string operationName)
+        private static string GetLocalPlayerId()
         {
-            var attempts = Mathf.Max(1, writeRateLimitRetryCount + 1);
-            var delaySeconds = Mathf.Max(0.1f, writeRateLimitRetryDelaySeconds);
-
-            for (var attempt = 1; attempt <= attempts; attempt++)
+            try
             {
-                try
+                if (AuthenticationService.Instance != null && AuthenticationService.Instance.IsSignedIn)
                 {
-                    return await action();
-                }
-                catch (LobbyServiceException ex) when (ex.Reason == LobbyExceptionReason.RateLimited)
-                {
-                    if (attempt >= attempts)
-                    {
-                        LobbyError?.Invoke("Lobby is busy. Please retry.");
-                        Debug.LogWarning($"[Lobby] {operationName} rate-limited after {attempt} attempts.");
-                        return null;
-                    }
-
-                    var waitSeconds = delaySeconds * attempt;
-                    Debug.LogWarning($"[Lobby] {operationName} rate-limited, retrying in {waitSeconds:0.0}s (attempt {attempt}/{attempts}).");
-                    await Task.Delay(TimeSpan.FromSeconds(waitSeconds));
-                }
-                catch (Exception ex)
-                {
-                    LobbyError?.Invoke(ex.Message);
-                    Debug.LogWarning($"[Lobby] {operationName} failed: {ex.Message}");
-                    return null;
+                    return AuthenticationService.Instance.PlayerId ?? string.Empty;
                 }
             }
+            catch
+            {
+                return string.Empty;
+            }
 
-            return null;
+            return string.Empty;
+        }
+
+        private string ResolveLobbyError(string fallback)
+        {
+            var error = matchRegistry != null ? matchRegistry.LastErrorMessage : string.Empty;
+            if (string.IsNullOrWhiteSpace(error))
+            {
+                return fallback;
+            }
+
+            switch (error)
+            {
+                case "already_in_active_match_connected":
+                    return "This account is already connected to an active match.";
+                case "already_in_active_match_disconnected":
+                    return "This account already has an active match. Use Reconnect.";
+                case "already_in_active_match":
+                    return "This account is already in an active match.";
+                case "player_busy_in_other_match":
+                    return "This account is already in another active match.";
+                case "not_in_match":
+                    return "This account is not assigned to that match.";
+                case "lobby_full":
+                    return "Lobby is full.";
+                case "not found":
+                    return "Lobby not found.";
+                case "host_only":
+                    return "Only host can start a match.";
+                case "player_not_in_lobby":
+                    return "You are not in this lobby.";
+                case "invalid request":
+                case "invalid playerId":
+                    return "Invalid lobby request.";
+                default:
+                    return error;
+            }
         }
     }
 }

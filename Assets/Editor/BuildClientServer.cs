@@ -14,6 +14,7 @@ public static class BuildClientServer
     {
         "Assets/Scenes/LoginScene.unity",
         "Assets/Scenes/StarterScene.unity",
+        "Assets/Scenes/PlayerProfileScene.unity",
         "Assets/Scenes/LobbyScene.unity",
         "Assets/Scenes/GameScene.unity"
     };

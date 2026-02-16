@@ -5,6 +5,8 @@ using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
+using Unity.Services.Authentication;
+using System.Text.RegularExpressions;
 
 namespace Peribind.Unity.UI
 {
@@ -42,6 +44,8 @@ namespace Peribind.Unity.UI
         [SerializeField] private string releasePlatform = "win64";
 
         private bool _isSubmitting;
+        private static readonly Regex EmailRegex =
+            new Regex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         private void Awake()
         {
@@ -71,8 +75,10 @@ namespace Peribind.Unity.UI
             }
 
             SetPasswordMode(passwordInput);
+            SetEmailMode(loginInput);
             SetPasswordMode(registerPasswordInput);
             SetPasswordMode(registerConfirmPasswordInput);
+            SetEmailMode(registerLoginInput);
 
             SetPanelState(showLogin: true);
             SetLoginInfo(string.Empty);
@@ -154,7 +160,13 @@ namespace Peribind.Unity.UI
             var password = passwordInput != null ? passwordInput.text : string.Empty;
             if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password))
             {
-                SetLoginInfo("Enter login and password.");
+                SetLoginInfo("Enter email and password.");
+                return;
+            }
+
+            if (!LooksLikeEmail(login))
+            {
+                SetLoginInfo("Enter a valid email address.");
                 return;
             }
 
@@ -183,9 +195,11 @@ namespace Peribind.Unity.UI
                 var result = await ugsBootstrap.SignInWithUsernamePasswordAsync(login, password);
                 if (!result.Success)
                 {
-                    SetLoginInfo(string.IsNullOrWhiteSpace(result.Message) ? "Invalid login or password." : result.Message);
+                    SetLoginInfo(string.IsNullOrWhiteSpace(result.Message) ? "Invalid email or password." : result.Message);
                     return;
                 }
+
+                await SyncPlayerProfileAsync(login);
 
                 SetLoginInfo("Login successful.");
                 ClearSelection();
@@ -236,6 +250,12 @@ namespace Peribind.Unity.UI
                 return;
             }
 
+            if (!LooksLikeEmail(login))
+            {
+                SetRegisterInfo("Enter a valid email address.");
+                return;
+            }
+
             if (!string.Equals(password, confirm, System.StringComparison.Ordinal))
             {
                 SetRegisterInfo("Password and confirmation do not match.");
@@ -270,6 +290,8 @@ namespace Peribind.Unity.UI
                     SetRegisterInfo(string.IsNullOrWhiteSpace(result.Message) ? "Registration failed." : result.Message);
                     return;
                 }
+
+                await SyncPlayerProfileAsync(login);
 
                 SetRegisterInfo("Registration successful.");
                 if (proceedToNextSceneAfterRegister && !string.IsNullOrWhiteSpace(nextSceneName))
@@ -397,6 +419,63 @@ namespace Peribind.Unity.UI
 
             input.contentType = TMP_InputField.ContentType.Password;
             input.ForceLabelUpdate();
+        }
+
+        private static void SetEmailMode(TMP_InputField input)
+        {
+            if (input == null)
+            {
+                return;
+            }
+
+            input.contentType = TMP_InputField.ContentType.EmailAddress;
+            input.ForceLabelUpdate();
+        }
+
+        private static bool LooksLikeEmail(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            return EmailRegex.IsMatch(value.Trim());
+        }
+
+        private async System.Threading.Tasks.Task SyncPlayerProfileAsync(string username)
+        {
+            if (matchRegistryClient == null)
+            {
+                matchRegistryClient = FindObjectOfType<MatchRegistryClient>(true);
+            }
+
+            if (matchRegistryClient == null || string.IsNullOrWhiteSpace(username))
+            {
+                return;
+            }
+
+            string playerId;
+            try
+            {
+                if (AuthenticationService.Instance == null || !AuthenticationService.Instance.IsSignedIn)
+                {
+                    return;
+                }
+
+                playerId = AuthenticationService.Instance.PlayerId;
+            }
+            catch
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(playerId))
+            {
+                return;
+            }
+
+            // Keep current custom display name on login/register sync.
+            await matchRegistryClient.UpsertPlayerAsync(playerId, username);
         }
 
         private async System.Threading.Tasks.Task<bool> EnsureClientVersionAllowedAsync(System.Action<string> setInfo)

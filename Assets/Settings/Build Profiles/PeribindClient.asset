@@ -23,6 +23,8 @@ MonoBehaviour:
   - m_enabled: 1
     m_path: Assets/Scenes/StarterScene.unity
   - m_enabled: 1
+    m_path: Assets/Scenes/PlayerProfileScene.unity
+  - m_enabled: 1
     m_path: Assets/Scenes/LobbyScene.unity
   - m_enabled: 1
     m_path: Assets/Scenes/GameScene.unity

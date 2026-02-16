@@ -1509,7 +1509,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Login
+  m_text: Email
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -2369,7 +2369,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Login
+  m_text: Email
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -3359,7 +3359,7 @@ GameObject:
   - component: {fileID: 1307480248}
   - component: {fileID: 1307480251}
   m_Layer: 5
-  m_Name: LoginInput
+  m_Name: EmailinInput
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3941,7 +3941,7 @@ GameObject:
   - component: {fileID: 1732678001}
   - component: {fileID: 1732678000}
   m_Layer: 5
-  m_Name: LoginInput
+  m_Name: Emailnput
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -5310,6 +5310,9 @@ MonoBehaviour:
   baseUrl: http://209.38.222.103:8080
   allowEnvironmentOverride: 1
   environmentBaseUrlKey: PERIBIND_MATCH_REGISTRY_URL
+  allowInternalTokenEnvironmentOverride: 1
+  internalTokenEnvironmentKey: PERIBIND_INTERNAL_API_TOKEN
+  internalApiToken: 
 --- !u!114 &2141763298
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5323,10 +5326,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Peribind::Peribind.Unity.Networking.LobbyServiceController
   ugsBootstrap: {fileID: 2141763299}
-  heartbeatIntervalSeconds: 15
+  matchRegistry: {fileID: 0}
   lobbyRefreshIntervalSeconds: 5
-  writeRateLimitRetryCount: 4
-  writeRateLimitRetryDelaySeconds: 1
   queryRetryCount: 1
   queryRetryDelaySeconds: 1
 --- !u!114 &2141763299

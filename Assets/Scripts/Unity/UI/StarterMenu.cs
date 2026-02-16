@@ -7,11 +7,17 @@ namespace Peribind.Unity.UI
     public class StarterMenu : MonoBehaviour
     {
         [SerializeField] private string lobbySceneName = "LobbyScene";
+        [SerializeField] private string profileSceneName = "PlayerProfileScene";
         [SerializeField] private string loginSceneName = "LoginScene";
 
         public void LoadLobbyScene()
         {
             SceneManager.LoadScene(lobbySceneName);
+        }
+
+        public void LoadProfileScene()
+        {
+            SceneManager.LoadScene(profileSceneName);
         }
 
         public void Logout()

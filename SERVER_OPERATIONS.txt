@@ -43,6 +43,9 @@ journalctl -u match-registry.service -f
 Last 200 log lines:
 journalctl -u match-registry.service -n 200 --no-pager
 
+Structured (JSON) logs only warnings/errors:
+journalctl -u match-registry.service --no-pager | grep -E '"level":"(warn|error)"'
+
 
 2) Health and registry API checks
 ---------------------------------
@@ -95,6 +98,8 @@ Quick counts:
 SELECT COUNT(*) FROM matches;
 SELECT COUNT(*) FROM matches WHERE ended_at IS NULL;
 SELECT COUNT(*) FROM player_last_match;
+SELECT COUNT(*) FROM match_results;
+SELECT COUNT(*) FROM player_stats;
 
 Recent matches:
 SELECT match_id, lobby_id, server_port, pid, created_at, ended_at
@@ -128,6 +133,8 @@ systemctl status match-registry.service --no-pager -l
 F) Verify:
 curl http://127.0.0.1:8080/health
 journalctl -u match-registry.service -n 100 --no-pager
+cd /opt/match-registry
+PERIBIND_INTERNAL_API_TOKEN='<TOKEN_IF_CONFIGURED>' npm run smoke:lifecycle
 
 
 6) Environment variables for registry (systemd)
@@ -144,11 +151,20 @@ Environment=PERIBIND_SERVER_LOG_DIR=/opt/peribind-server/logs
 Environment=PERIBIND_SERVER_PORT_MIN=7777
 Environment=PERIBIND_SERVER_PORT_MAX=7877
 Environment=PERIBIND_MATCH_REGISTRY_URL=http://127.0.0.1:8080
+Environment=PERIBIND_INTERNAL_API_TOKEN=<strong_random_token>
+Environment=PERIBIND_TRUST_PROXY=1
 Environment=PGHOST=127.0.0.1
 Environment=PGPORT=5432
 Environment=PGDATABASE=peribind
 Environment=PGUSER=peribind
 Environment=PGPASSWORD=<strong_password>
+
+Optional rate-limit tuning:
+Environment=PERIBIND_RATE_LIMIT_WINDOW_MS=10000
+Environment=PERIBIND_RATE_LIMIT_MAX_GLOBAL=150
+Environment=PERIBIND_RATE_LIMIT_MAX_LOBBY=80
+Environment=PERIBIND_RATE_LIMIT_MAX_MATCH=60
+Environment=PERIBIND_RATE_LIMIT_MAX_RELEASE=20
 
 Apply:
 systemctl daemon-reload
@@ -182,6 +198,11 @@ Issue: "Internal Server Error" in client lobby
 - Check Postgres:
   systemctl status postgresql --no-pager -l
 
+Issue: "rate_limited" errors
+- Check recent limiter events:
+  journalctl -u match-registry.service -n 200 --no-pager | grep '"event":"rate_limited"'
+- Increase limit env vars in section 6 if needed for your traffic profile.
+
 Issue: Match cannot start / bind error
 - Check UDP ports in use:
   ss -lunp | grep PeribindServer
@@ -198,6 +219,7 @@ Issue: Old match state appears unexpectedly
 ---------------------------------------------------------------
 Rotate these secrets:
 - Registry admin token: PERIBIND_RELEASE_ADMIN_TOKEN
+- Internal API token: PERIBIND_INTERNAL_API_TOKEN
 - Postgres app password: PGPASSWORD for user "peribind"
 
 9.1 Rotate registry admin token
@@ -214,6 +236,17 @@ Apply and verify:
 systemctl daemon-reload
 systemctl restart match-registry.service
 systemctl show match-registry.service -p Environment --no-pager | grep PERIBIND_RELEASE_ADMIN_TOKEN
+
+9.1b Rotate internal API token
+Generate:
+openssl rand -hex 32
+
+Set in service:
+Environment=PERIBIND_INTERNAL_API_TOKEN=<NEW_TOKEN>
+
+Apply:
+systemctl daemon-reload
+systemctl restart match-registry.service
 
 9.2 Rotate Postgres password for app user
 Set new DB password (single command):

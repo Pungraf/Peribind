@@ -65,7 +65,7 @@ namespace Peribind.Unity.Networking
             password = password ?? string.Empty;
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             {
-                return new AuthOperationResult(false, "Enter login and password.");
+                return new AuthOperationResult(false, "Enter email and password.");
             }
 
             await EnsureInitializedAsync();
@@ -86,7 +86,7 @@ namespace Peribind.Unity.Networking
             {
                 Debug.LogWarning($"[UGS] Username/password sign-in failed: {signInEx.Message}");
                 SignOutAndClear();
-                return new AuthOperationResult(false, "Invalid login or password.", signInEx.ErrorCode);
+                return new AuthOperationResult(false, "Invalid email or password.", signInEx.ErrorCode);
             }
             catch (RequestFailedException signInEx)
             {
@@ -97,7 +97,7 @@ namespace Peribind.Unity.Networking
                     return new AuthOperationResult(false, "Too many attempts. Please wait and retry.", signInEx.ErrorCode);
                 }
 
-                return new AuthOperationResult(false, "Invalid login or password.", signInEx.ErrorCode);
+                return new AuthOperationResult(false, "Invalid email or password.", signInEx.ErrorCode);
             }
         }
 
@@ -107,7 +107,7 @@ namespace Peribind.Unity.Networking
             password = password ?? string.Empty;
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             {
-                return new AuthOperationResult(false, "Enter login and password.");
+                return new AuthOperationResult(false, "Enter email and password.");
             }
 
             var passwordValidation = ValidatePassword(password);
@@ -137,7 +137,7 @@ namespace Peribind.Unity.Networking
                 SignOutAndClear();
                 if (LooksLikeUsernameTaken(ex.Message))
                 {
-                    return new AuthOperationResult(false, "Login already exists.", ex.ErrorCode);
+                    return new AuthOperationResult(false, "Email already exists.", ex.ErrorCode);
                 }
 
                 if (LooksLikeInvalidPassword(ex.Message))
@@ -153,7 +153,7 @@ namespace Peribind.Unity.Networking
                 SignOutAndClear();
                 if (ex.ErrorCode == CommonErrorCodes.Conflict || LooksLikeUsernameTaken(ex.Message))
                 {
-                    return new AuthOperationResult(false, "Login already exists.", ex.ErrorCode);
+                    return new AuthOperationResult(false, "Email already exists.", ex.ErrorCode);
                 }
 
                 if (ex.ErrorCode == CommonErrorCodes.TooManyRequests)

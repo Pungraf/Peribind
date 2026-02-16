@@ -74,6 +74,8 @@ D) Match registry service code (if allocator/registry API changed):
 - /opt/match-registry/server.js
 - /opt/match-registry/package.json (if changed)
 - /opt/match-registry/package-lock.json (if changed)
+- /opt/match-registry/scripts/smoke_lifecycle.js (if changed)
+  Note: player profile sync uses /player/upsert endpoint from server.js.
 
 E) Launcher for distribution to players:
 - Build/Launcher/* (share this package with players)
@@ -101,6 +103,10 @@ systemctl daemon-reload
 systemctl restart match-registry.service
 systemctl status match-registry.service --no-pager -l
 curl http://127.0.0.1:8080/health
+journalctl -u match-registry.service -n 80 --no-pager
+
+If using internal auth for sensitive match endpoints, ensure unit has:
+Environment=PERIBIND_INTERNAL_API_TOKEN=<strong_random_token>
 
 
 6) Verify hosted files (VPS and LOCAL)
@@ -126,6 +132,41 @@ curl -X POST http://127.0.0.1:8080/release/publish \
 
 [VPS] verify manifest:
 curl "http://127.0.0.1:8080/release/latest?channel=stable&platform=win64"
+
+[VPS] verify player profile endpoint:
+curl -X POST http://127.0.0.1:8080/player/upsert \
+  -H "Content-Type: application/json" \
+  -d '{"ugsPlayerId":"TEST_PLAYER_001","username":"test_user","displayName":"test_user"}'
+curl http://127.0.0.1:8080/player/TEST_PLAYER_001
+curl http://127.0.0.1:8080/player/TEST_PLAYER_001/profile
+curl "http://127.0.0.1:8080/player/TEST_PLAYER_001/matches?limit=5"
+curl "http://127.0.0.1:8080/leaderboard?limit=20"
+
+[VPS] exact backend verification set (Phase 5 endpoints):
+MID="manual_$(date +%s)"
+P1="TEST_PLAYER_001"
+P2="TEST_PLAYER_002"
+ITOKEN="<PERIBIND_INTERNAL_API_TOKEN>"
+
+curl -X POST http://127.0.0.1:8080/player/upsert \
+  -H "Content-Type: application/json" \
+  -d "{\"ugsPlayerId\":\"$P1\",\"username\":\"test_user_1\",\"displayName\":\"test_user_1\"}"
+curl -X POST http://127.0.0.1:8080/player/upsert \
+  -H "Content-Type: application/json" \
+  -d "{\"ugsPlayerId\":\"$P2\",\"username\":\"test_user_2\",\"displayName\":\"test_user_2\"}"
+
+curl -X POST http://127.0.0.1:8080/match/result \
+  -H "Content-Type: application/json" \
+  -H "x-internal-token: $ITOKEN" \
+  -d "{\"matchId\":\"$MID\",\"winnerPlayerId\":\"$P1\",\"wasSurrendered\":false,\"surrenderingPlayerId\":\"\",\"players\":[{\"playerId\":\"$P1\",\"playerSlot\":0,\"score\":10},{\"playerId\":\"$P2\",\"playerSlot\":1,\"score\":14}]}"
+
+curl "http://127.0.0.1:8080/player/$P1/profile"
+curl "http://127.0.0.1:8080/player/$P1/matches?limit=5"
+curl "http://127.0.0.1:8080/leaderboard?limit=20"
+
+[VPS] run lifecycle smoke test:
+cd /opt/match-registry
+PERIBIND_INTERNAL_API_TOKEN='<TOKEN_IF_CONFIGURED>' npm run smoke:lifecycle
 
 
 8) End-to-end validation
@@ -163,4 +204,3 @@ curl -X POST http://127.0.0.1:8080/release/publish \
 - sizeBytes: PowerShell Get-Item .Length
 - downloadUrl: your hosted zip link on download.peribind.com
 - notesUrl: your hosted patch notes link
-

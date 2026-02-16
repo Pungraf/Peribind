@@ -2,19 +2,19 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using TMPro;
-using UnityEngine;
-using UnityEngine.UI;
-using UnityEngine.SceneManagement;
-using Peribind.Unity.Networking;
-using Unity.Services.Lobbies.Models;
-using Unity.Services.Authentication;
 using Unity.Netcode;
+using Unity.Services.Authentication;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using Peribind.Unity.Networking;
 
 namespace Peribind.Unity.UI
 {
     public class LobbyUgsMenu : MonoBehaviour
     {
         [SerializeField] private LobbyServiceController lobbyService;
+
         [Header("Create")]
         [SerializeField] private TMP_InputField lobbyNameInput;
         [SerializeField] private TMP_InputField mapInput;
@@ -106,8 +106,6 @@ namespace Peribind.Unity.UI
                 return;
             }
 
-            // If client start was initiated but Netcode is no longer in a client/listening state,
-            // clear the local lock so another connect attempt is possible.
             if (!manager.IsClient && !manager.IsListening && !manager.ShutdownInProgress)
             {
                 _connecting = false;
@@ -139,6 +137,7 @@ namespace Peribind.Unity.UI
             var name = lobbyNameInput != null && !string.IsNullOrWhiteSpace(lobbyNameInput.text)
                 ? lobbyNameInput.text
                 : "Match";
+
             await lobbyService.CreateLobbyAsync(name, 2, GetText(mapInput), string.Empty, string.Empty);
             await RefreshLobbyListAsync();
         }
@@ -227,7 +226,17 @@ namespace Peribind.Unity.UI
             {
                 if (statusText != null)
                 {
-                    statusText.text = "Not allowed to rejoin this match.";
+                    statusText.text = "No reconnectable match for this account.";
+                }
+
+                return;
+            }
+
+            if (info.connectedPlayers != null && info.connectedPlayers.Contains(playerId))
+            {
+                if (statusText != null)
+                {
+                    statusText.text = "This account is already connected to that match.";
                 }
 
                 return;
@@ -236,7 +245,7 @@ namespace Peribind.Unity.UI
             directConnection.StartClient(info.serverIp, info.serverPort);
         }
 
-        private void UpdateLobbyList(List<Lobby> lobbies)
+        private void UpdateLobbyList(List<MatchRegistryClient.LobbyInfo> lobbies)
         {
             if (listContent == null || lobbyRowButtonPrefab == null) return;
 
@@ -255,20 +264,20 @@ namespace Peribind.Unity.UI
             var localPlayerId = AuthenticationService.Instance.PlayerId;
             foreach (var lobby in lobbies)
             {
-                var isMember = lobby.Players != null && lobby.Players.Exists(p => p.Id == localPlayerId);
+                var isMember = lobby.players != null && lobby.players.Exists(p => p.id == localPlayerId);
                 var row = Instantiate(lobbyRowButtonPrefab, listContent);
                 var label = row.GetComponentInChildren<TMP_Text>(true);
                 if (label != null)
                 {
-                    var playerCount = lobby.Players != null ? lobby.Players.Count : 0;
-                    label.text = $"{lobby.Name} | {playerCount}/{lobby.MaxPlayers} | Code: {lobby.LobbyCode}";
+                    var playerCount = lobby.players != null ? lobby.players.Count : 0;
+                    label.text = $"{lobby.name} | {playerCount}/{lobby.maxPlayers} | Code: {lobby.lobbyCode}";
                 }
 
                 row.onClick.AddListener(() => OnLobbyRowClicked(lobby, isMember));
             }
         }
 
-        private void OnLobbyUpdated(Lobby lobby)
+        private void OnLobbyUpdated(MatchRegistryClient.LobbyInfo lobby)
         {
             if (lobby == null)
             {
@@ -285,11 +294,12 @@ namespace Peribind.Unity.UI
 
             if (statusText != null)
             {
-                statusText.text = $"In lobby: {lobby.Name} | {lobby.Players.Count}/{lobby.MaxPlayers} | Code: {lobby.LobbyCode}";
+                var lobbyPlayers = lobby.players != null ? lobby.players.Count : 0;
+                statusText.text = $"In lobby: {lobby.name} | {lobbyPlayers}/{lobby.maxPlayers} | Code: {lobby.lobbyCode}";
             }
 
             if (!string.IsNullOrWhiteSpace(_pendingAllocationLobbyId) &&
-                !string.Equals(_pendingAllocationLobbyId, lobby.Id, StringComparison.Ordinal))
+                !string.Equals(_pendingAllocationLobbyId, lobby.id, StringComparison.Ordinal))
             {
                 _pendingAllocation = null;
                 _pendingAllocationLobbyId = string.Empty;
@@ -300,7 +310,7 @@ namespace Peribind.Unity.UI
             TryConnectToServer(lobby);
 
             var previousCount = _lastObservedLobbyPlayerCount;
-            var playerCount = lobby.Players != null ? lobby.Players.Count : 0;
+            var playerCount = lobby.players != null ? lobby.players.Count : 0;
             _lastObservedLobbyPlayerCount = playerCount;
 
             if (!_connecting && previousCount >= 0 && previousCount != playerCount)
@@ -312,14 +322,6 @@ namespace Peribind.Unity.UI
         private void OnLobbyError(string message)
         {
             if (statusText == null) return;
-            if (!string.IsNullOrWhiteSpace(message) &&
-                (message.IndexOf("too many", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                 message.IndexOf("429", StringComparison.OrdinalIgnoreCase) >= 0))
-            {
-                statusText.text = "Lobby busy, retrying...";
-                return;
-            }
-
             statusText.text = $"Lobby error: {message}";
         }
 
@@ -328,21 +330,15 @@ namespace Peribind.Unity.UI
             return input != null ? input.text : string.Empty;
         }
 
-        private async void OnLobbyRowClicked(Lobby lobby, bool isMember)
+        private async void OnLobbyRowClicked(MatchRegistryClient.LobbyInfo lobby, bool isMember)
         {
             if (lobbyService == null || lobby == null)
             {
                 return;
             }
 
-            if (isMember)
-            {
-                await lobbyService.GetLobbyByIdAsync(lobby.Id);
-                await RefreshLobbyListAsync();
-                return;
-            }
-
-            await lobbyService.JoinLobbyByIdAsync(lobby.Id);
+            // Always execute join flow so backend can enforce active-match/account-busy rules.
+            await lobbyService.JoinLobbyByIdAsync(lobby.id);
             await RefreshLobbyListAsync();
         }
 
@@ -409,14 +405,14 @@ namespace Peribind.Unity.UI
             }
         }
 
-        private void UpdateReadyState(Lobby lobby)
+        private void UpdateReadyState(MatchRegistryClient.LobbyInfo lobby)
         {
-            if (lobby == null) return;
+            if (lobby == null || lobby.players == null) return;
             var playerId = AuthenticationService.Instance.PlayerId;
-            var player = lobby.Players.Find(p => p.Id == playerId);
-            if (player != null && player.Data != null && player.Data.TryGetValue("ready", out var readyObj))
+            var player = lobby.players.Find(p => p.id == playerId);
+            if (player != null)
             {
-                _isReady = readyObj.Value == "1";
+                _isReady = player.ready;
             }
 
             UpdateReadyButton();
@@ -430,26 +426,25 @@ namespace Peribind.Unity.UI
             }
         }
 
-        private void TryStartServerIfReady(Lobby lobby)
+        private void TryStartServerIfReady(MatchRegistryClient.LobbyInfo lobby)
         {
             if (lobbyService == null || lobby == null) return;
-            if (lobby.Players == null || lobby.Players.Count < 2) return;
+            if (lobby.players == null || lobby.players.Count < 2) return;
 
-            var isHost = lobby.HostId == AuthenticationService.Instance.PlayerId;
+            var isHost = lobby.hostId == AuthenticationService.Instance.PlayerId;
             if (!isHost) return;
 
-            if (lobby.Data != null && lobby.Data.ContainsKey("server_ip"))
+            if (!string.IsNullOrWhiteSpace(lobby.serverIp) && lobby.serverPort > 0)
             {
-                Debug.Log("[LobbyUgs] Server info already set in lobby data.");
                 _pendingAllocation = null;
                 _pendingAllocationLobbyId = string.Empty;
                 return;
             }
 
             var allReady = true;
-            foreach (var player in lobby.Players)
+            foreach (var player in lobby.players)
             {
-                if (player.Data == null || !player.Data.TryGetValue("ready", out var readyObj) || readyObj.Value != "1")
+                if (!player.ready)
                 {
                     allReady = false;
                     break;
@@ -458,13 +453,13 @@ namespace Peribind.Unity.UI
 
             if (allReady)
             {
-                if (_pendingAllocation != null && string.Equals(_pendingAllocationLobbyId, lobby.Id, StringComparison.Ordinal))
+                if (_pendingAllocation != null && string.Equals(_pendingAllocationLobbyId, lobby.id, StringComparison.Ordinal))
                 {
                     _ = PublishPendingServerInfoAsync(lobby);
                     return;
                 }
 
-                if (_isServerAllocationInFlight && string.Equals(_allocatingLobbyId, lobby.Id, StringComparison.Ordinal))
+                if (_isServerAllocationInFlight && string.Equals(_allocatingLobbyId, lobby.id, StringComparison.Ordinal))
                 {
                     return;
                 }
@@ -473,23 +468,17 @@ namespace Peribind.Unity.UI
             }
         }
 
-        private void TryConnectToServer(Lobby lobby)
+        private void TryConnectToServer(MatchRegistryClient.LobbyInfo lobby)
         {
             if (_connecting || directConnection == null || lobby == null) return;
-            if (lobby.Data == null) return;
 
-            if (!lobby.Data.TryGetValue("server_ip", out var ipObj)) return;
-            if (!lobby.Data.TryGetValue("server_port", out var portObj)) return;
-            if (!lobby.Data.TryGetValue("match_id", out var matchObj)) return;
-
-            var ip = ipObj.Value;
-            var matchId = matchObj.Value;
-            if (!int.TryParse(portObj.Value, out var port))
+            var ip = lobby.serverIp;
+            var matchId = lobby.matchId;
+            var port = lobby.serverPort;
+            if (string.IsNullOrWhiteSpace(ip) || port <= 0)
             {
                 return;
             }
-
-            if (string.IsNullOrWhiteSpace(ip)) return;
 
             Debug.Log($"[LobbyUgs] Connecting to server {ip}:{port} matchId={matchId}");
             if (!string.IsNullOrWhiteSpace(matchId))
@@ -503,6 +492,7 @@ namespace Peribind.Unity.UI
             {
                 lobbyService.PauseLobbyRefresh();
             }
+
             var started = directConnection.StartClient(ip, port);
             if (!started)
             {
@@ -514,7 +504,7 @@ namespace Peribind.Unity.UI
             }
         }
 
-        private async Task AllocateAndPublishServerInfoAsync(Lobby lobby)
+        private async Task AllocateAndPublishServerInfoAsync(MatchRegistryClient.LobbyInfo lobby)
         {
             if (lobbyService == null || matchRegistry == null || lobby == null)
             {
@@ -522,33 +512,31 @@ namespace Peribind.Unity.UI
             }
 
             _isServerAllocationInFlight = true;
-            _allocatingLobbyId = lobby.Id;
+            _allocatingLobbyId = lobby.id;
             try
             {
                 var players = new List<string>();
-                if (lobby.Players != null)
+                if (lobby.players != null)
                 {
-                    foreach (var player in lobby.Players)
+                    foreach (var player in lobby.players)
                     {
-                        players.Add(player.Id);
+                        players.Add(player.id);
                     }
                 }
 
-                var map = lobby.Data != null && lobby.Data.TryGetValue("map", out var mapObj) ? mapObj.Value : string.Empty;
-                var mode = lobby.Data != null && lobby.Data.TryGetValue("mode", out var modeObj) ? modeObj.Value : string.Empty;
-                var region = lobby.Data != null && lobby.Data.TryGetValue("region", out var regionObj) ? regionObj.Value : string.Empty;
-                var allocation = await matchRegistry.CreateMatchAsync(lobby.Id, players, map, mode, region);
+                var allocation = await matchRegistry.CreateMatchAsync(lobby.id, players, lobby.map, lobby.mode, lobby.region);
                 if (allocation == null || string.IsNullOrWhiteSpace(allocation.serverIp) || allocation.serverPort <= 0 || string.IsNullOrWhiteSpace(allocation.matchId))
                 {
                     if (statusText != null)
                     {
                         statusText.text = "Server allocation failed.";
                     }
+
                     return;
                 }
 
                 _pendingAllocation = allocation;
-                _pendingAllocationLobbyId = lobby.Id;
+                _pendingAllocationLobbyId = lobby.id;
                 await PublishPendingServerInfoAsync(lobby);
             }
             finally
@@ -558,14 +546,14 @@ namespace Peribind.Unity.UI
             }
         }
 
-        private async Task PublishPendingServerInfoAsync(Lobby lobby)
+        private async Task PublishPendingServerInfoAsync(MatchRegistryClient.LobbyInfo lobby)
         {
             if (lobbyService == null || lobby == null || _pendingAllocation == null)
             {
                 return;
             }
 
-            if (!string.Equals(_pendingAllocationLobbyId, lobby.Id, StringComparison.Ordinal))
+            if (!string.Equals(_pendingAllocationLobbyId, lobby.id, StringComparison.Ordinal))
             {
                 return;
             }
@@ -579,6 +567,7 @@ namespace Peribind.Unity.UI
                 {
                     statusText.text = "Server ready, retrying lobby update...";
                 }
+
                 return;
             }
 
