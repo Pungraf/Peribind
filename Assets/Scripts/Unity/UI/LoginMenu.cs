@@ -6,6 +6,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
 using Unity.Services.Authentication;
+using Unity.Services.Authentication.PlayerAccounts;
 using System.Text.RegularExpressions;
 
 namespace Peribind.Unity.UI
@@ -37,6 +38,7 @@ namespace Peribind.Unity.UI
         [SerializeField] private MatchRegistryClient matchRegistryClient;
         [SerializeField] private string nextSceneName = "StarterScene";
         [SerializeField] private bool proceedToNextSceneAfterRegister = true;
+        [SerializeField] private bool useUnityPlayerAccounts = true;
 
         [Header("Client Version Gate")]
         [SerializeField] private bool enforceMinClientVersion = true;
@@ -153,21 +155,29 @@ namespace Peribind.Unity.UI
         {
             if (_isSubmitting)
             {
-                return;
+                if (!useUnityPlayerAccounts)
+                {
+                    return;
+                }
+
+                CancelPendingPlayerAccountFlow("Previous browser authentication cancelled. Restarting sign-in...");
             }
 
             var login = loginInput != null ? loginInput.text : string.Empty;
-            var password = passwordInput != null ? passwordInput.text : string.Empty;
-            if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password))
+            if (!useUnityPlayerAccounts)
             {
-                SetLoginInfo("Enter email and password.");
-                return;
-            }
+                var password = passwordInput != null ? passwordInput.text : string.Empty;
+                if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password))
+                {
+                    SetLoginInfo("Enter email and password.");
+                    return;
+                }
 
-            if (!LooksLikeEmail(login))
-            {
-                SetLoginInfo("Enter a valid email address.");
-                return;
+                if (!LooksLikeEmail(login))
+                {
+                    SetLoginInfo("Enter a valid email address.");
+                    return;
+                }
             }
 
             var versionGate = await EnsureClientVersionAllowedAsync(SetLoginInfo);
@@ -188,18 +198,31 @@ namespace Peribind.Unity.UI
             }
 
             _isSubmitting = true;
-            SetButtonsInteractable(false);
-            SetLoginInfo("Signing in...");
+            if (!useUnityPlayerAccounts)
+            {
+                SetButtonsInteractable(false);
+            }
+            SetLoginInfo(useUnityPlayerAccounts ? "Opening browser for sign-in..." : "Signing in...");
             try
             {
-                var result = await ugsBootstrap.SignInWithUsernamePasswordAsync(login, password);
+                UgsBootstrap.AuthOperationResult result;
+                if (useUnityPlayerAccounts)
+                {
+                    result = await ugsBootstrap.SignInWithPlayerAccountAsync(isSignUpFlow: false);
+                }
+                else
+                {
+                    var password = passwordInput != null ? passwordInput.text : string.Empty;
+                    result = await ugsBootstrap.SignInWithUsernamePasswordAsync(login, password);
+                }
+
                 if (!result.Success)
                 {
                     SetLoginInfo(string.IsNullOrWhiteSpace(result.Message) ? "Invalid email or password." : result.Message);
                     return;
                 }
 
-                await SyncPlayerProfileAsync(login);
+                await SyncPlayerProfileAsync(ResolveProfileUsername(login));
 
                 SetLoginInfo("Login successful.");
                 ClearSelection();
@@ -221,15 +244,41 @@ namespace Peribind.Unity.UI
             UnityEngine.Application.Quit();
         }
 
+        public void OpenPlayerAccountPortal()
+        {
+            var url = "https://player-account.unity.com";
+            try
+            {
+                if (PlayerAccountService.Instance != null && !string.IsNullOrWhiteSpace(PlayerAccountService.Instance.AccountPortalUrl))
+                {
+                    url = PlayerAccountService.Instance.AccountPortalUrl;
+                }
+            }
+            catch
+            {
+                // Fallback to default URL.
+            }
+
+            UnityEngine.Application.OpenURL(url);
+            SetLoginInfo("Open browser account portal for password reset and account management.");
+        }
+
         private void OnRegisterPanelClicked()
         {
             if (_isSubmitting)
             {
-                return;
+                if (!useUnityPlayerAccounts)
+                {
+                    return;
+                }
+
+                CancelPendingPlayerAccountFlow("Browser authentication cancelled.");
             }
 
             SetPanelState(showLogin: false);
-            SetRegisterInfo(string.Empty);
+            SetRegisterInfo(useUnityPlayerAccounts
+                ? "Account creation continues in browser."
+                : string.Empty);
             ClearSelection();
         }
 
@@ -237,29 +286,37 @@ namespace Peribind.Unity.UI
         {
             if (_isSubmitting)
             {
-                return;
+                if (!useUnityPlayerAccounts)
+                {
+                    return;
+                }
+
+                CancelPendingPlayerAccountFlow("Previous browser authentication cancelled. Restarting registration...");
             }
 
             var login = registerLoginInput != null ? registerLoginInput.text : string.Empty;
-            var password = registerPasswordInput != null ? registerPasswordInput.text : string.Empty;
-            var confirm = registerConfirmPasswordInput != null ? registerConfirmPasswordInput.text : string.Empty;
-
-            if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(confirm))
+            if (!useUnityPlayerAccounts)
             {
-                SetRegisterInfo("Fill all fields.");
-                return;
-            }
+                var password = registerPasswordInput != null ? registerPasswordInput.text : string.Empty;
+                var confirm = registerConfirmPasswordInput != null ? registerConfirmPasswordInput.text : string.Empty;
 
-            if (!LooksLikeEmail(login))
-            {
-                SetRegisterInfo("Enter a valid email address.");
-                return;
-            }
+                if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(confirm))
+                {
+                    SetRegisterInfo("Fill all fields.");
+                    return;
+                }
 
-            if (!string.Equals(password, confirm, System.StringComparison.Ordinal))
-            {
-                SetRegisterInfo("Password and confirmation do not match.");
-                return;
+                if (!LooksLikeEmail(login))
+                {
+                    SetRegisterInfo("Enter a valid email address.");
+                    return;
+                }
+
+                if (!string.Equals(password, confirm, System.StringComparison.Ordinal))
+                {
+                    SetRegisterInfo("Password and confirmation do not match.");
+                    return;
+                }
             }
 
             var versionGate = await EnsureClientVersionAllowedAsync(SetRegisterInfo);
@@ -280,18 +337,31 @@ namespace Peribind.Unity.UI
             }
 
             _isSubmitting = true;
-            SetButtonsInteractable(false);
-            SetRegisterInfo("Creating account...");
+            if (!useUnityPlayerAccounts)
+            {
+                SetButtonsInteractable(false);
+            }
+            SetRegisterInfo(useUnityPlayerAccounts ? "Opening browser for registration..." : "Creating account...");
             try
             {
-                var result = await ugsBootstrap.RegisterWithUsernamePasswordAsync(login, password);
+                UgsBootstrap.AuthOperationResult result;
+                if (useUnityPlayerAccounts)
+                {
+                    result = await ugsBootstrap.SignInWithPlayerAccountAsync(isSignUpFlow: true);
+                }
+                else
+                {
+                    var password = registerPasswordInput != null ? registerPasswordInput.text : string.Empty;
+                    result = await ugsBootstrap.RegisterWithUsernamePasswordAsync(login, password);
+                }
+
                 if (!result.Success)
                 {
                     SetRegisterInfo(string.IsNullOrWhiteSpace(result.Message) ? "Registration failed." : result.Message);
                     return;
                 }
 
-                await SyncPlayerProfileAsync(login);
+                await SyncPlayerProfileAsync(ResolveProfileUsername(login));
 
                 SetRegisterInfo("Registration successful.");
                 if (proceedToNextSceneAfterRegister && !string.IsNullOrWhiteSpace(nextSceneName))
@@ -311,7 +381,12 @@ namespace Peribind.Unity.UI
         {
             if (_isSubmitting)
             {
-                return;
+                if (!useUnityPlayerAccounts)
+                {
+                    return;
+                }
+
+                CancelPendingPlayerAccountFlow("Browser authentication cancelled.");
             }
 
             if (registerLoginInput != null) registerLoginInput.text = string.Empty;
@@ -320,6 +395,20 @@ namespace Peribind.Unity.UI
             SetRegisterInfo(string.Empty);
             SetPanelState(showLogin: true);
             FocusInput(loginInput);
+        }
+
+        private void CancelPendingPlayerAccountFlow(string infoMessage)
+        {
+            if (ugsBootstrap == null)
+            {
+                ugsBootstrap = FindObjectOfType<UgsBootstrap>(true);
+            }
+
+            ugsBootstrap?.CancelPlayerAccountFlow();
+            _isSubmitting = false;
+            SetButtonsInteractable(true);
+            SetLoginInfo(infoMessage);
+            SetRegisterInfo(infoMessage);
         }
 
         private void ClearSelection()
@@ -476,6 +565,38 @@ namespace Peribind.Unity.UI
 
             // Keep current custom display name on login/register sync.
             await matchRegistryClient.UpsertPlayerAsync(playerId, username);
+        }
+
+        private static string ResolveProfileUsername(string fallbackUsername)
+        {
+            var fallback = string.IsNullOrWhiteSpace(fallbackUsername) ? string.Empty : fallbackUsername.Trim();
+
+            try
+            {
+                var claims = PlayerAccountService.Instance?.IdTokenClaims;
+                if (claims != null && !string.IsNullOrWhiteSpace(claims.Email))
+                {
+                    return claims.Email.Trim();
+                }
+            }
+            catch
+            {
+                // Best effort only.
+            }
+
+            try
+            {
+                if (AuthenticationService.Instance != null && !string.IsNullOrWhiteSpace(AuthenticationService.Instance.PlayerId))
+                {
+                    return string.IsNullOrWhiteSpace(fallback) ? AuthenticationService.Instance.PlayerId : fallback;
+                }
+            }
+            catch
+            {
+                // Best effort only.
+            }
+
+            return fallback;
         }
 
         private async System.Threading.Tasks.Task<bool> EnsureClientVersionAllowedAsync(System.Action<string> setInfo)

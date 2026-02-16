@@ -2019,8 +2019,8 @@ app.get("/leaderboard", async (req, res) => {
   const result = await pool.query(
     `SELECT
        ps.player_id,
-       COALESCE(p.username, ps.player_id) AS username,
-       COALESCE(NULLIF(p.display_name, ''), COALESCE(p.username, ps.player_id)) AS display_name,
+       p.username AS username,
+       COALESCE(NULLIF(p.display_name, ''), p.username) AS display_name,
        ps.games_played,
        ps.wins,
        ps.losses,
@@ -2033,7 +2033,7 @@ app.get("/leaderboard", async (req, res) => {
        ps.last_match_at,
        ps.updated_at
      FROM player_stats ps
-     LEFT JOIN players p ON p.ugs_player_id = ps.player_id
+     JOIN players p ON p.ugs_player_id = ps.player_id
      WHERE ps.games_played > 0
      ORDER BY ps.rank_points DESC, ps.wins DESC, ps.games_played DESC, ps.updated_at DESC
      LIMIT $1`,

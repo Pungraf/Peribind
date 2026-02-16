@@ -353,8 +353,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 222.49998, y: 0}
-  m_SizeDelta: {x: 420.99997, y: 30}
+  m_AnchoredPosition: {x: 199.16666, y: 0}
+  m_SizeDelta: {x: 374.3333, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &92763576
 MonoBehaviour:
@@ -513,8 +513,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 480.49997, y: 0}
-  m_SizeDelta: {x: 70.99998, y: 30}
+  m_AnchoredPosition: {x: 445.49997, y: 0}
+  m_SizeDelta: {x: 94.33331, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &127430222
 MonoBehaviour:
@@ -529,9 +529,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.LayoutElement
   m_IgnoreLayout: 0
-  m_MinWidth: -1
+  m_MinWidth: 70
   m_MinHeight: -1
-  m_PreferredWidth: 0
+  m_PreferredWidth: 70
   m_PreferredHeight: -1
   m_FlexibleWidth: -1
   m_FlexibleHeight: -1
@@ -1150,8 +1150,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 475.49997, y: 0}
-  m_SizeDelta: {x: 134.33331, y: 30}
+  m_AnchoredPosition: {x: 460.49997, y: 0}
+  m_SizeDelta: {x: 124.33331, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &334041392
 MonoBehaviour:
@@ -1702,8 +1702,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 576.83325, y: 0}
-  m_SizeDelta: {x: 44.333313, y: 30}
+  m_AnchoredPosition: {x: 566.83325, y: 0}
+  m_SizeDelta: {x: 64.33331, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &813943746
 MonoBehaviour:
@@ -1800,9 +1800,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.LayoutElement
   m_IgnoreLayout: 0
-  m_MinWidth: -1
+  m_MinWidth: 40
   m_MinHeight: -1
-  m_PreferredWidth: -1
+  m_PreferredWidth: 40
   m_PreferredHeight: -1
   m_FlexibleWidth: -1
   m_FlexibleHeight: -1
@@ -2144,8 +2144,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 563.49994, y: 0}
-  m_SizeDelta: {x: 70.99998, y: 30}
+  m_AnchoredPosition: {x: 551.83325, y: 0}
+  m_SizeDelta: {x: 94.33331, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1055335050
 MonoBehaviour:
@@ -2160,9 +2160,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.LayoutElement
   m_IgnoreLayout: 0
-  m_MinWidth: -1
+  m_MinWidth: 70
   m_MinHeight: -1
-  m_PreferredWidth: 0
+  m_PreferredWidth: 70
   m_PreferredHeight: -1
   m_FlexibleWidth: -1
   m_FlexibleHeight: -1
@@ -2284,8 +2284,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 204.16666, y: 0}
-  m_SizeDelta: {x: 384.3333, y: 30}
+  m_AnchoredPosition: {x: 199.16666, y: 0}
+  m_SizeDelta: {x: 374.3333, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1120320177
 MonoBehaviour:
@@ -3050,7 +3050,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 23.55
+  m_fontSize: 26.85
   m_fontSizeBase: 24
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -4099,7 +4099,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 19.45
+  m_fontSize: 26.85
   m_fontSizeBase: 24
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -4236,7 +4236,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 20.15
+  m_fontSize: 26.75
   m_fontSizeBase: 24
   m_fontWeight: 400
   m_enableAutoSizing: 1

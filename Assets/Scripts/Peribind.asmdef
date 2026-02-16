@@ -6,6 +6,7 @@
     "Unity.UGUI",
     "Unity.Services.Core",
     "Unity.Services.Authentication",
+    "Unity.Services.Authentication.PlayerAccounts",
     "Unity.Services.Multiplayer",
     "Unity.Netcode.Runtime",
     "Unity.Networking.Transport"

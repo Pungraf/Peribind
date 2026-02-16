@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Unity.Services.Authentication;
+using Peribind.Unity.Networking;
+using Unity.Services.Authentication.PlayerAccounts;
 
 namespace Peribind.Unity.UI
 {
@@ -30,12 +32,32 @@ namespace Peribind.Unity.UI
         {
             try
             {
-                AuthenticationService.Instance.SignOut(true);
-                AuthenticationService.Instance.ClearSessionToken();
+                UgsBootstrap.SignOutAll();
             }
             catch
             {
-                // Best effort only; missing/disabled services should not block scene navigation.
+                // Fallback path if UgsBootstrap static helpers are unavailable.
+                try
+                {
+                    AuthenticationService.Instance.SignOut(true);
+                    AuthenticationService.Instance.ClearSessionToken();
+                }
+                catch
+                {
+                    // Best effort only; missing/disabled services should not block scene navigation.
+                }
+
+                try
+                {
+                    if (PlayerAccountService.Instance != null && PlayerAccountService.Instance.IsSignedIn)
+                    {
+                        PlayerAccountService.Instance.SignOut();
+                    }
+                }
+                catch
+                {
+                    // Best effort only.
+                }
             }
         }
     }
