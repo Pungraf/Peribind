@@ -1,0 +1,56 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:VisualElement name="lobby-screen-root" class="screen-root lobby-screen">
+        <ui:VisualElement class="screen-background-overlay" picking-mode="Ignore" />
+
+        <ui:VisualElement class="screen-card lobby-card">
+            <ui:VisualElement class="lobby-title-row">
+                <ui:Label class="title-text lobby-page-title" text="Lobby" />
+                <ui:Button name="return-button" class="secondary-button lobby-top-return-button" text="Return" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="lobby-grid">
+                <ui:VisualElement class="lobby-left">
+                    <ui:VisualElement class="lobby-section">
+                        <ui:Label class="section-title" text="Create" />
+                        <ui:VisualElement class="lobby-section-body lobby-section-body-create">
+                            <ui:TextField name="lobby-name-input" class="auth-field lobby-name-field" label="Lobby Name" />
+                            <ui:TextField name="map-input" class="auth-field" label="Map" />
+                            <ui:Button name="create-button" class="primary-button" text="Create Lobby" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+
+                    <ui:VisualElement class="lobby-section">
+                        <ui:Label class="section-title" text="Match" />
+                        <ui:VisualElement class="lobby-section-body lobby-section-body-match">
+                            <ui:Button name="ready-button" class="primary-button" text="Ready" />
+                            <ui:Button name="reconnect-button" class="secondary-button" text="Reconnect" />
+                            <ui:Button name="leave-button" class="danger-button" text="Leave Lobby" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+
+                <ui:VisualElement class="lobby-right">
+                    <ui:VisualElement class="lobby-right-top">
+                        <ui:VisualElement class="lobby-right-header-row">
+                            <ui:Label class="section-title lobby-right-title" text="Available Lobbies" />
+                            <ui:Button name="refresh-button" class="secondary-button lobby-refresh-button" text="Refresh" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="status-shell">
+                            <ui:Label name="status-label" class="lobby-status-text" text="" />
+                        </ui:VisualElement>
+                        <ui:ScrollView name="lobby-list-scroll" class="lobby-list-scroll" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="lobby-section lobby-section-right-lower">
+                        <ui:Label class="section-title" text="Join" />
+                        <ui:VisualElement class="lobby-section-body lobby-section-body-join">
+                            <ui:TextField name="join-code-input" class="auth-field" label="Join Code" />
+                            <ui:VisualElement class="button-stack">
+                                <ui:Button name="join-code-button" class="secondary-button" text="Join Code" />
+                            </ui:VisualElement>
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

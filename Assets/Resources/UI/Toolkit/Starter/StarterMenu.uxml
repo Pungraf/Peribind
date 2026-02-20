@@ -1,0 +1,19 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Resources/UI/Toolkit/Common/PeribindTheme.uss?fileID=7433441132597879392&amp;guid=61d1ac9672314734ab92d2d149f52768&amp;type=3#PeribindTheme"/>
+    <Style src="project://database/Assets/Resources/UI/Toolkit/Starter/StarterMenu.uss?fileID=7433441132597879392&amp;guid=185b299bf3cdd494292b5430bb76993d&amp;type=3#StarterMenu"/>
+    <ui:VisualElement name="starter-root" class="screen-root starter-screen">
+        <ui:VisualElement class="screen-background-overlay" picking-mode="Ignore" />
+        <ui:VisualElement class="screen-card starter-card">
+            <ui:Label name="title-label" class="title-text" text="Peribind" />
+            <ui:VisualElement name="starter-panel" class="auth-panel">
+                <ui:Label name="subtitle-label" class="section-title" text="Choose your next action" />
+                <ui:Label name="starter-info-label" class="info-label" text="" />
+                <ui:VisualElement class="button-column">
+                    <ui:Button name="play-button" class="primary-button" text="Play" />
+                    <ui:Button name="profile-button" class="secondary-button" text="Profile" />
+                    <ui:Button name="logout-button" class="danger-button" text="Logout" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

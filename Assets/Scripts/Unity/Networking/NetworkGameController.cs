@@ -19,6 +19,7 @@ namespace Peribind.Unity.Networking
         private static readonly Dictionary<ulong, int> s_clientToPlayerId = new Dictionary<ulong, int>();
         private static readonly Dictionary<ulong, string> s_clientToAuthId = new Dictionary<ulong, string>();
         private static readonly Dictionary<string, int> s_authToPlayerId = new Dictionary<string, int>();
+        private static readonly Dictionary<int, string> s_playerIdToAuthId = new Dictionary<int, string>();
         [SerializeField] private GridMapper gridMapper;
         [SerializeField] private GameConfigSO gameConfig;
 
@@ -446,6 +447,8 @@ namespace Peribind.Unity.Networking
                     SendAssignedPlayerId(clientId, assigned);
                 }
             }
+
+            SendAuthMapToClient(clientId);
         }
 
         private void SendAssignedPlayerId(ulong clientId, int playerId)
@@ -461,6 +464,32 @@ namespace Peribind.Unity.Networking
             AssignPlayerIdClientRpc(playerId, clientParams);
         }
 
+        private void SendAuthMapToClient(ulong clientId)
+        {
+            if (!IsServer || !IsSpawned || s_playerIdToAuthId.Count == 0)
+            {
+                return;
+            }
+
+            var clientParams = new ClientRpcParams
+            {
+                Send = new ClientRpcSendParams
+                {
+                    TargetClientIds = new[] { clientId }
+                }
+            };
+
+            foreach (var pair in s_playerIdToAuthId)
+            {
+                if (pair.Key < 0 || string.IsNullOrWhiteSpace(pair.Value))
+                {
+                    continue;
+                }
+
+                SyncAuthIdMapEntryClientRpc(pair.Key, pair.Value, clientParams);
+            }
+        }
+
         [ClientRpc]
         private void AssignPlayerIdClientRpc(int playerId, ClientRpcParams rpcParams = default)
         {
@@ -471,6 +500,17 @@ namespace Peribind.Unity.Networking
 
             _localPlayerIdOverride = playerId;
             SessionUpdated?.Invoke();
+        }
+
+        [ClientRpc]
+        private void SyncAuthIdMapEntryClientRpc(int playerId, string authId, ClientRpcParams rpcParams = default)
+        {
+            if (playerId < 0 || string.IsNullOrWhiteSpace(authId))
+            {
+                return;
+            }
+
+            s_playerIdToAuthId[playerId] = authId;
         }
 
         private void OnClientDisconnected(ulong clientId)
@@ -507,6 +547,7 @@ namespace Peribind.Unity.Networking
         private void HandleClientDisconnected()
         {
             _localPlayerIdOverride = -1;
+            s_playerIdToAuthId.Clear();
             _session = null;
             _piecesById = null;
             _pieceIdByHash = null;
@@ -543,11 +584,13 @@ namespace Peribind.Unity.Networking
             s_clientToPlayerId.Clear();
             s_clientToAuthId.Clear();
             s_authToPlayerId.Clear();
+            s_playerIdToAuthId.Clear();
             _localPlayerIdOverride = -1;
             _session = null;
             InitializeSessionIfNeeded();
             if (IsServer)
             {
+                _authPlayerMap.Clear();
                 SyncStateToNetwork();
             }
         }
@@ -639,6 +682,10 @@ namespace Peribind.Unity.Networking
             {
                 var assigned = AssignPlayerId(clientId);
                 SendAssignedPlayerId(clientId, assigned);
+                if (clientId != NetworkManager.ServerClientId)
+                {
+                    SendAuthMapToClient(clientId);
+                }
             }
         }
 
@@ -824,11 +871,29 @@ namespace Peribind.Unity.Networking
                 if (_authPlayerMap[i].AuthHash == hash)
                 {
                     _authPlayerMap[i] = new AuthPlayerNet { AuthHash = hash, PlayerId = playerId };
+                    UpdateAuthIdMap(authId, playerId);
                     return;
                 }
             }
 
             _authPlayerMap.Add(new AuthPlayerNet { AuthHash = hash, PlayerId = playerId });
+            UpdateAuthIdMap(authId, playerId);
+        }
+
+        private void UpdateAuthIdMap(string authId, int playerId)
+        {
+            if (playerId < 0 || string.IsNullOrWhiteSpace(authId))
+            {
+                return;
+            }
+
+            s_playerIdToAuthId[playerId] = authId;
+            if (!IsServer || !IsSpawned)
+            {
+                return;
+            }
+
+            SyncAuthIdMapEntryClientRpc(playerId, authId);
         }
 
         private void SyncAuthMapFromRegistry()
@@ -937,6 +1002,34 @@ namespace Peribind.Unity.Networking
         public static Dictionary<string, int> GetAuthPlayerAssignmentsSnapshot()
         {
             return new Dictionary<string, int>(s_authToPlayerId);
+        }
+
+        public bool TryGetAuthIdForPlayerId(int playerId, out string authId)
+        {
+            authId = string.Empty;
+            if (playerId < 0)
+            {
+                return false;
+            }
+
+            if (s_playerIdToAuthId.TryGetValue(playerId, out var mappedAuthId) && !string.IsNullOrWhiteSpace(mappedAuthId))
+            {
+                authId = mappedAuthId;
+                return true;
+            }
+
+            foreach (var pair in s_authToPlayerId)
+            {
+                if (pair.Value != playerId || string.IsNullOrWhiteSpace(pair.Key))
+                {
+                    continue;
+                }
+
+                authId = pair.Key;
+                return true;
+            }
+
+            return false;
         }
 
         private string GetLocalAuthId()

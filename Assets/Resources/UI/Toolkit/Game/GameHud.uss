@@ -1,0 +1,346 @@
+.game-overlay-root {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+}
+
+.hud-name-slot {
+    position: absolute;
+    top: 16px;
+    width: auto;
+    flex-direction: column;
+}
+
+.hud-name-slot-left {
+    left: 16px;
+    align-items: flex-start;
+}
+
+.hud-name-slot-right {
+    right: 16px;
+    align-items: flex-end;
+}
+
+.hud-round-turn-slot {
+    position: absolute;
+    left: 50%;
+    top: 16px;
+    translate: -50% 0;
+    width: auto;
+    flex-direction: column;
+    align-items: center;
+}
+
+.hud-chip {
+    min-height: 72px;
+    margin-bottom: 6px;
+    padding-left: 34px;
+    padding-right: 34px;
+    padding-top: 18px;
+    padding-bottom: 6px;
+    font-size: 30px;
+    line-height: 30px;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0);
+    background-image: url("../wooden/panel_small_stone.png");
+    -unity-slice-left: 34px;
+    -unity-slice-right: 34px;
+    -unity-slice-top: 34px;
+    -unity-slice-bottom: 34px;
+    unity-background-scale-mode: stretch-to-fill;
+    color: rgb(242, 228, 191);
+    unity-text-align: middle-center;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+.hud-chip > .unity-text-element {
+    translate: 0px 10px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.hud-chip > .unity-label {
+    translate: 0px 10px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.hud-player-name-chip {
+    width: auto;
+}
+
+.hud-name-slot-left .hud-player-name-chip {
+    unity-text-align: middle-center;
+}
+
+.hud-name-slot-right .hud-player-name-chip {
+    unity-text-align: middle-center;
+}
+
+.hud-opponent-name-chip {
+    color: rgb(255, 120, 120);
+}
+
+.hud-round-turn-chip {
+    width: auto;
+    unity-text-align: middle-center;
+}
+
+.palette-panel {
+    position: absolute;
+    left: 16px;
+    top: 17%;
+    width: 380px;
+    height: 66%;
+    min-height: 540px;
+    max-height: none;
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+    background-color: rgba(255, 255, 255, 0);
+    background-image: url("../wooden/panel_medium_stone.png");
+    -unity-slice-left: 36px;
+    -unity-slice-right: 36px;
+    -unity-slice-top: 36px;
+    -unity-slice-bottom: 36px;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+.palette-scroll {
+    flex-grow: 1;
+    min-height: 0;
+}
+
+.hud-actions-panel {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    translate: 0 0;
+    width: 310px;
+    align-items: flex-end;
+}
+
+.hud-score-stack {
+    flex-direction: column;
+    width: auto;
+    margin-bottom: 10px;
+    align-items: flex-end;
+}
+
+.hud-score-chip {
+    width: auto;
+    unity-text-align: middle-center;
+}
+
+.hud-finish-button {
+    width: 310px;
+    min-height: 190px;
+    font-size: 50px;
+}
+
+.hud-finish-button > .unity-button__text,
+.hud-finish-button > .unity-text-element {
+    font-size: 50px;
+    line-height: 50px;
+    translate: 0px 8px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.hud-finish-button > .unity-label {
+    font-size: 50px;
+    line-height: 50px;
+    translate: 0px 8px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.hud-finish-main-button > .unity-button__text,
+.hud-finish-main-button > .unity-text-element,
+.hud-finish-main-button > .unity-label {
+    white-space: normal;
+    unity-text-align: middle-center;
+    line-height: 44px;
+    translate: 0px 4px;
+}
+
+.palette-piece-button {
+    margin-top: 4px;
+    margin-bottom: 4px;
+    min-height: 72px;
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    background-color: rgba(255, 255, 255, 0);
+    background-image: url("../wooden/panel_small_stone.png");
+    -unity-background-image-tint-color: rgb(224, 214, 196);
+    -unity-slice-left: 34px;
+    -unity-slice-right: 34px;
+    -unity-slice-top: 34px;
+    -unity-slice-bottom: 34px;
+    color: rgb(242, 228, 191);
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+.palette-piece-button:hover {
+    background-image: url("../wooden/panel_small_stone.png");
+    -unity-background-image-tint-color: rgb(255, 246, 224);
+    color: rgb(40, 28, 18);
+}
+
+.palette-piece-button-selected {
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+    background-image: url("../wooden/panel_small_set.png");
+    -unity-background-image-tint-color: white;
+    color: rgb(57, 38, 23);
+}
+
+.palette-piece-row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.palette-piece-swatch {
+    width: 12px;
+    height: 12px;
+    margin-right: 8px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+.palette-piece-icon {
+    width: 28px;
+    height: 28px;
+    margin-right: 8px;
+    background-repeat: no-repeat;
+    unity-background-scale-mode: scale-to-fit;
+}
+
+.palette-piece-label {
+    flex-grow: 1;
+    font-size: 24px;
+    color: rgb(242, 228, 191);
+    unity-text-align: middle-left;
+    translate: 0px 3px;
+}
+
+.palette-piece-button:hover .palette-piece-label,
+.palette-piece-button-selected .palette-piece-label {
+    color: rgb(57, 38, 23);
+}
+
+.palette-piece-selection {
+    width: 10px;
+    height: 10px;
+    margin-left: 8px;
+    background-color: rgba(255, 255, 255, 0);
+    background-image: url("../png/palette_selection_dot_64.png");
+    unity-background-scale-mode: scale-to-fit;
+}
+
+.hud-modal-backdrop {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background-color: rgba(22, 16, 12, 0.5);
+    background-image: url("../png/overlay_vignette_1920x1080.png");
+    -unity-background-image-tint-color: rgba(34, 24, 18, 0.7);
+    unity-background-scale-mode: stretch-to-fill;
+    display: none;
+}
+
+.hud-menu-panel {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    translate: -50% -50%;
+    width: 860px;
+    min-height: 520px;
+    padding-left: 22px;
+    padding-right: 22px;
+    padding-top: 30px;
+    padding-bottom: 30px;
+    align-items: center;
+    justify-content: center;
+    row-gap: 24px;
+    background-color: rgba(255, 255, 255, 0);
+    background-image: url("../wooden/panel_medium_set.png");
+    -unity-slice-left: 36px;
+    -unity-slice-right: 36px;
+    -unity-slice-top: 36px;
+    -unity-slice-bottom: 36px;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+    display: none;
+}
+
+.hud-state-label {
+    width: 80%;
+    margin-bottom: 12px;
+    min-height: 120px;
+    color: rgb(242, 228, 191);
+    background-image: url("../wooden/panel_small_stone.png");
+    -unity-slice-left: 34px;
+    -unity-slice-right: 34px;
+    -unity-slice-top: 34px;
+    -unity-slice-bottom: 34px;
+    padding-left: 49px;
+    padding-right: 24px;
+    padding-top: 39px;
+    padding-bottom: 14px;
+    font-size: 34px;
+    unity-text-align: middle-center;
+    white-space: normal;
+    align-self: center;
+    display: none;
+}
+
+.hud-state-label > .unity-text-element {
+    translate: 0px 0px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.hud-state-label > .unity-label {
+    translate: 0px 0px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.hud-modal-action-button {
+    align-self: center;
+}
+
+.hud-modal-action-button.hud-modal-action-button-ok-state > .unity-button__text,
+.hud-modal-action-button.hud-modal-action-button-ok-state > .unity-text-element,
+.hud-modal-action-button.hud-modal-action-button-ok-state > .unity-label {
+    font-size: 60px;
+    line-height: 60px;
+    translate: 0px 8px;
+}

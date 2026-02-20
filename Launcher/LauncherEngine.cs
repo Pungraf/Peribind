@@ -157,13 +157,30 @@ internal sealed class LauncherEngine : IDisposable
     {
         if (string.IsNullOrWhiteSpace(configuredInstallDir))
         {
-            return Path.GetFullPath(Path.Combine(appDir, "game"));
+            return GetDefaultUserInstallDir();
+        }
+
+        var expanded = Environment.ExpandEnvironmentVariables(configuredInstallDir.Trim());
+        if (string.IsNullOrWhiteSpace(expanded))
+        {
+            return GetDefaultUserInstallDir();
         }
 
         return Path.GetFullPath(
-            Path.IsPathRooted(configuredInstallDir)
-                ? configuredInstallDir
-                : Path.Combine(appDir, configuredInstallDir));
+            Path.IsPathRooted(expanded)
+                ? expanded
+                : Path.Combine(appDir, expanded));
+    }
+
+    private static string GetDefaultUserInstallDir()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (string.IsNullOrWhiteSpace(localAppData))
+        {
+            localAppData = Path.GetTempPath();
+        }
+
+        return Path.Combine(localAppData, "Peribind", "game");
     }
 
     private async Task<ReleaseInfo?> FetchLatestReleaseAsync(CancellationToken ct)
@@ -436,7 +453,7 @@ internal sealed class LauncherConfig
     public string RegistryBaseUrl { get; set; } = "http://209.38.222.103:8080";
     public string Channel { get; set; } = "stable";
     public string Platform { get; set; } = "win64";
-    public string InstallDirectory { get; set; } = "./game";
+    public string InstallDirectory { get; set; } = @"%LOCALAPPDATA%\Peribind\game";
     public string GameExeRelativePath { get; set; } = "PeribindClient.exe";
     public int HttpTimeoutSeconds { get; set; } = 60;
 

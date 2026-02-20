@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("PeribindLauncher")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f291eab4ec513eaf30706a274ed381a0fd547b68")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+81148cfadd2dda5613c9d61d2b10c3ebeb71169c")]
 [assembly: System.Reflection.AssemblyProductAttribute("PeribindLauncher")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PeribindLauncher")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

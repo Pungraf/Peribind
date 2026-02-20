@@ -1,0 +1,81 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Resources/UI/Toolkit/Common/PeribindTheme.uss?fileID=7433441132597879392&amp;guid=61d1ac9672314734ab92d2d149f52768&amp;type=3#PeribindTheme"/>
+    <Style src="project://database/Assets/Resources/UI/Toolkit/Profile/ProfileMenu.uss?fileID=7433441132597879392&amp;guid=28e36b63fa89558419ed3d1c1a881642&amp;type=3#ProfileMenu"/>
+    <ui:VisualElement name="profile-screen-root" class="screen-root profile-screen">
+        <ui:VisualElement class="screen-background-overlay" picking-mode="Ignore" />
+
+        <ui:VisualElement class="screen-card profile-card">
+            <ui:VisualElement class="profile-title-row">
+                <ui:VisualElement class="profile-title-info">
+                    <ui:Label class="title-text profile-title" text="Player Profile" />
+                    <ui:Label name="account-info-label" class="profile-header-playerid" text="" />
+                </ui:VisualElement>
+                <ui:VisualElement class="profile-title-actions">
+                    <ui:Button name="refresh-button" class="secondary-button profile-top-button" text="Refresh" />
+                    <ui:Button name="return-button" class="secondary-button profile-top-button" text="Return" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="profile-account-panel">
+                <ui:VisualElement class="profile-edit-row">
+                    <ui:TextField name="display-name-input" class="auth-field profile-display-name-input" label="" />
+                    <ui:Button name="save-display-name-button" class="primary-button profile-save-button" text="Save Name" />
+                </ui:VisualElement>
+
+                <ui:Label name="profile-info-label" class="status-label profile-status-label" text="" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="profile-main-row">
+                <ui:VisualElement class="profile-records-panel">
+                    <ui:VisualElement class="profile-records-header">
+                        <ui:Label class="section-title profile-section-title profile-records-title" text="Match Records" />
+                        <ui:VisualElement class="records-tabs-row">
+                            <ui:Button name="records-tab-leaderboard-button" class="secondary-button records-tab-button records-tab-button-active" text="Leaderboard" />
+                            <ui:Button name="records-tab-history-button" class="secondary-button records-tab-button" text="History" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    <ui:ScrollView name="leaderboard-scroll" class="profile-scroll records-list" />
+                    <ui:ScrollView name="history-scroll" class="profile-scroll records-list records-list-hidden" />
+                </ui:VisualElement>
+
+                <ui:VisualElement class="profile-stats-panel profile-stats-panel-side">
+                    <ui:Label class="section-title profile-section-title" text="Stats" />
+                    <ui:VisualElement class="profile-stats-grid">
+                        <ui:VisualElement class="stat-card">
+                            <ui:Label class="stat-title" text="Games" />
+                            <ui:Label name="stat-games-value" class="stat-value" text="0" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="stat-card">
+                            <ui:Label class="stat-title" text="Wins" />
+                            <ui:Label name="stat-wins-value" class="stat-value" text="0" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="stat-card">
+                            <ui:Label class="stat-title" text="Losses" />
+                            <ui:Label name="stat-losses-value" class="stat-value" text="0" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="stat-card">
+                            <ui:Label class="stat-title" text="Draws" />
+                            <ui:Label name="stat-draws-value" class="stat-value" text="0" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="stat-card">
+                            <ui:Label class="stat-title" text="Win&#10;Rate" />
+                            <ui:Label name="stat-winrate-value" class="stat-value" text="0%" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="stat-card">
+                            <ui:Label class="stat-title" text="Rank&#10;Points" />
+                            <ui:Label name="stat-rankpoints-value" class="stat-value" text="0" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="stat-card">
+                            <ui:Label class="stat-title" text="Score&#10;Total" />
+                            <ui:Label name="stat-scoretotal-value" class="stat-value" text="0" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="stat-card">
+                            <ui:Label class="stat-title" text="Surrenders" />
+                            <ui:Label name="stat-surrenders-value" class="stat-value" text="0" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

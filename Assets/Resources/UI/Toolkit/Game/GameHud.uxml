@@ -1,0 +1,35 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <ui:VisualElement name="game-hud-root" class="game-overlay-root" picking-mode="Ignore">
+        <ui:VisualElement class="hud-name-slot hud-name-slot-left" picking-mode="Ignore">
+            <ui:Label name="local-player-name-label" class="hud-chip hud-player-name-chip" text="-" />
+        </ui:VisualElement>
+
+        <ui:VisualElement class="hud-round-turn-slot" picking-mode="Ignore">
+            <ui:Label name="round-label" class="hud-chip hud-round-turn-chip" text="Round 1/2" />
+            <ui:Label name="turn-label" class="hud-chip hud-round-turn-chip" text="Turn: -" />
+        </ui:VisualElement>
+
+        <ui:VisualElement class="hud-name-slot hud-name-slot-right" picking-mode="Ignore">
+            <ui:Label name="opponent-player-name-label" class="hud-chip hud-player-name-chip hud-opponent-name-chip" text="-" />
+        </ui:VisualElement>
+
+        <ui:VisualElement class="palette-panel">
+            <ui:ScrollView name="piece-palette-scroll" class="palette-scroll" />
+        </ui:VisualElement>
+
+        <ui:VisualElement class="hud-actions-panel">
+            <ui:VisualElement class="hud-score-stack" picking-mode="Ignore">
+                <ui:Label name="player-one-score-label" class="hud-chip hud-score-chip" text="P1: 0" />
+                <ui:Label name="player-two-score-label" class="hud-chip hud-score-chip" text="P2: 0" />
+            </ui:VisualElement>
+            <ui:Button name="finish-round-button" class="secondary-button hud-finish-button hud-finish-main-button" text="Finish&#10;Round" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="menu-backdrop" class="hud-modal-backdrop" picking-mode="Position" />
+
+        <ui:VisualElement name="game-over-panel" class="hud-menu-panel">
+            <ui:Label name="state-label" class="hud-state-label" text="" />
+            <ui:Button name="exit-button" class="secondary-button hud-finish-button hud-modal-action-button" text="Surrender" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

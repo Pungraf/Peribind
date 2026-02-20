@@ -1,0 +1,423 @@
+.profile-screen {
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-top: 20px;
+    padding-bottom: 20px;
+}
+
+.profile-screen .screen-background-overlay {
+    background-image: url("../png/overlay_vignette_1920x1080.png");
+}
+
+.profile-card {
+    width: 100%;
+    max-width: 1180px;
+    min-height: 760px;
+    background-image: url("../wooden/panel_large_set.png");
+    -unity-slice-left: 72px;
+    -unity-slice-right: 72px;
+    -unity-slice-top: 72px;
+    -unity-slice-bottom: 72px;
+    padding-left: 80px;
+    padding-right: 80px;
+    padding-top: 66px;
+    padding-bottom: 56px;
+}
+
+.profile-title-row {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.profile-title-info {
+    flex-direction: row;
+    align-items: flex-end;
+}
+
+.profile-title {
+    unity-text-align: middle-left;
+    margin-bottom: 0;
+}
+
+.profile-header-playerid {
+    margin-left: 14px;
+    margin-bottom: 8px;
+    font-size: 15px;
+    color: var(--pb-text-1);
+    unity-text-align: middle-left;
+}
+
+.profile-title-actions {
+    flex-direction: row;
+    align-items: flex-start;
+}
+
+.profile-top-button {
+    width: 170px;
+    min-height: 56px;
+    max-height: 56px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.profile-title-actions > Button:first-child {
+    margin-right: 8px;
+}
+
+.profile-account-panel {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin-top: 4px;
+    margin-bottom: 12px;
+    min-height: 240px;
+    padding-left: 18px;
+    padding-right: 18px;
+    padding-top: 18px;
+    padding-bottom: 16px;
+    background-image: url("../wooden/panel_small_set.png");
+    -unity-slice-left: 34px;
+    -unity-slice-right: 34px;
+    -unity-slice-top: 34px;
+    -unity-slice-bottom: 34px;
+}
+
+.profile-edit-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+    margin-bottom: 8px;
+    width: 100%;
+    translate: 0 -15px;
+}
+
+.profile-display-name-input {
+    flex-grow: 0;
+    width: 56.25%;
+    margin-right: 10px;
+    margin-bottom: 0;
+}
+
+.profile-display-name-input > .unity-base-field__label {
+    display: none;
+}
+
+.profile-display-name-input > .unity-base-field__input {
+    min-height: 84px;
+    padding-left: 39px;
+    font-size: 36px;
+}
+
+.profile-save-button {
+    width: 190px;
+    min-height: 76px;
+    max-height: 76px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.profile-status-label {
+    width: 75%;
+    align-self: center;
+    margin-top: 4px;
+    margin-bottom: 0;
+    translate: 0 -15px;
+    padding-left: 40px;
+}
+
+.profile-stats-panel {
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    margin-top: 0;
+    margin-bottom: 0;
+    min-height: 420px;
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 12px;
+    padding-bottom: 14px;
+    background-image: url("../wooden/panel_small_set.png");
+    -unity-slice-left: 34px;
+    -unity-slice-right: 34px;
+    -unity-slice-top: 34px;
+    -unity-slice-bottom: 34px;
+}
+
+.profile-section-title {
+    margin-top: 0;
+    margin-left: 2px;
+    margin-bottom: 8px;
+    font-size: 22px;
+}
+
+.profile-main-row {
+    flex-direction: row;
+    align-items: stretch;
+    margin-top: 6px;
+}
+
+.profile-records-panel {
+    flex-grow: 1;
+    min-width: 0;
+    min-height: 420px;
+    margin-right: 14px;
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    background-image: url("../wooden/panel_small_set.png");
+    -unity-slice-left: 34px;
+    -unity-slice-right: 34px;
+    -unity-slice-top: 34px;
+    -unity-slice-bottom: 34px;
+}
+
+.profile-records-header {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.profile-records-title {
+    margin-top: 0;
+    margin-left: 2px;
+    margin-bottom: 8px;
+    font-size: 22px;
+    -unity-font-style: bold;
+}
+
+.records-tabs-row {
+    flex-direction: row;
+    align-items: center;
+    align-self: stretch;
+    width: 100%;
+    justify-content: center;
+    margin-bottom: 8px;
+}
+
+.records-tab-button {
+    width: 168px;
+    min-height: 56px;
+    max-height: 56px;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-right: 8px;
+}
+
+.records-tabs-row > Button:last-child {
+    margin-right: 0;
+}
+
+.records-tab-button-active {
+    background-image: url("../wooden/btn_big_pressed.png");
+    -unity-slice-left: 15px;
+    -unity-slice-right: 15px;
+    -unity-slice-top: 35px;
+    -unity-slice-bottom: 10px;
+    padding-top: 22px;
+    padding-bottom: 0;
+}
+
+.records-tab-button.records-tab-button-active,
+.records-tab-button.records-tab-button-active:hover,
+.records-tab-button.records-tab-button-active:active {
+    background-image: url("../wooden/btn_big_pressed.png");
+    -unity-slice-left: 15px;
+    -unity-slice-right: 15px;
+    -unity-slice-top: 35px;
+    -unity-slice-bottom: 10px;
+    padding-top: 22px;
+    padding-bottom: 0;
+}
+
+.records-list-hidden {
+    display: none;
+}
+
+.profile-stats-panel-side {
+    width: 36%;
+    min-width: 340px;
+    flex-shrink: 0;
+}
+
+.profile-stats-grid {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    width: 100%;
+}
+
+.stat-card {
+    width: 41.2%;
+    min-width: 0;
+    min-height: 62px;
+    margin-top: 4px;
+    margin-bottom: 6px;
+    margin-left: 6px;
+    margin-right: 6px;
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-top: 6px;
+    padding-bottom: 5px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    background-image: url("../wooden/panel_small_stone.png");
+    -unity-slice-left: 34px;
+    -unity-slice-right: 34px;
+    -unity-slice-top: 34px;
+    -unity-slice-bottom: 34px;
+}
+
+.stat-title {
+    font-size: 13px;
+    color: var(--pb-text-on-dark);
+    flex-grow: 1;
+    padding-left: 10px;
+    white-space: normal;
+    line-height: 13px;
+    unity-text-align: middle-left;
+}
+
+.stat-value {
+    margin-top: 0;
+    font-size: 21px;
+    -unity-font-style: bold;
+    color: rgb(248, 236, 204);
+    margin-left: 8px;
+    unity-text-align: middle-right;
+}
+
+.profile-records-grid {
+    flex-direction: row;
+    align-items: stretch;
+}
+
+.profile-records-panel:last-child {
+    margin-right: 0;
+}
+
+.profile-scroll {
+    min-height: 238px;
+    max-height: 238px;
+    margin-top: 0;
+    padding-right: 4px;
+    flex-grow: 0;
+}
+
+.leaderboard-row-card,
+.history-row-card {
+    width: 85%;
+    align-self: center;
+    height: 74px;
+    min-height: 74px;
+    max-height: 74px;
+    margin-top: 0;
+    margin-bottom: 0;
+    padding-left: 40px;
+    padding-right: 40px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    background-image: url("../wooden/panel_small_stone.png");
+    -unity-slice-left: 34px;
+    -unity-slice-right: 34px;
+    -unity-slice-top: 34px;
+    -unity-slice-bottom: 34px;
+    overflow: hidden;
+}
+
+.leaderboard-row-card {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.leaderboard-row-left {
+    flex-direction: row;
+    align-items: center;
+    min-width: 180px;
+    margin-right: 8px;
+}
+
+.leaderboard-rank {
+    width: 56px;
+    font-size: 18px;
+    -unity-font-style: bold;
+    color: rgb(248, 236, 204);
+    unity-text-align: middle-left;
+}
+
+.leaderboard-name {
+    flex-grow: 1;
+    color: var(--pb-text-on-dark);
+    font-size: 15px;
+}
+
+.leaderboard-name-local {
+    color: rgb(244, 213, 119);
+}
+
+.leaderboard-row-right {
+    flex-direction: row;
+    align-items: center;
+    padding-right: 15px;
+}
+
+.leaderboard-metric {
+    margin-left: 12px;
+    color: var(--pb-text-on-dark);
+    font-size: 14px;
+}
+
+.history-row-card {
+    flex-direction: column;
+    justify-content: center;
+}
+
+.history-row-top {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0;
+}
+
+.history-result {
+    -unity-font-style: bold;
+    font-size: 15px;
+    color: rgb(248, 236, 204);
+}
+
+.history-result.win {
+    color: rgb(167, 229, 173);
+}
+
+.history-result.loss {
+    color: rgb(255, 186, 171);
+}
+
+.history-result.draw {
+    color: rgb(248, 236, 204);
+}
+
+.history-score {
+    font-size: 14px;
+    color: var(--pb-text-on-dark);
+}
+
+.history-meta {
+    font-size: 13px;
+    color: rgb(225, 210, 178);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.profile-empty-row {
+    min-height: 52px;
+    color: rgb(225, 210, 178);
+    white-space: normal;
+    unity-text-align: middle-center;
+}

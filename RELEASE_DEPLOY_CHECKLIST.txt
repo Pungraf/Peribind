@@ -9,6 +9,7 @@ It tells you:
 - what files to move
 - where to run commands (LOCAL PC vs VPS)
 - how to get hash/size/version values for manifest publish
+- how to build Windows installer (Inno Setup)
 
 
 Conventions
@@ -33,10 +34,26 @@ Expected output paths (based on current project layout):
 - Client build folder: Build/Client/
 - Linux server build folder: Build/ServerLinux/
 - Launcher output: Build/Launcher/
+- Installer output: Build/Installer/
 
 [LOCAL] build launcher:
 dotnet restore Launcher/PeribindLauncher.csproj -r win-x64
 dotnet publish Launcher/PeribindLauncher.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o Build/Launcher
+
+[LOCAL] verify launcher config before packaging:
+- file: Build/Launcher/launcher.config.json
+- required values:
+  - "RegistryBaseUrl": "http://209.38.222.103:8080" (or your domain endpoint)
+  - "InstallDirectory": "%LOCALAPPDATA%\\Peribind\\game"
+  - "GameExeRelativePath": "PeribindClient.exe"
+
+[LOCAL] build installer (Inno Setup 6):
+1. Update version in Installer/PeribindSetup.iss:
+   #define MyAppVersion "0.2.1"
+2. Compile installer:
+   & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "Installer\PeribindSetup.iss"
+3. Result:
+   Build/Installer/PeribindSetup_0.2.1.exe
 
 
 2) Package client for download (LOCAL)
@@ -62,6 +79,7 @@ Save both values for step 7.
 -------------------------------------
 A) Download package hosting:
 - /var/www/peribind/downloads/PeribindClient_0.2.1.zip
+- /var/www/peribind/downloads/PeribindSetup_0.2.1.exe
 
 B) Patch notes:
 - /var/www/peribind/patch-notes/0.2.1.html
@@ -79,6 +97,20 @@ D) Match registry service code (if allocator/registry API changed):
 
 E) Launcher for distribution to players:
 - Build/Launcher/* (share this package with players)
+
+F) Installer for distribution to players (recommended):
+- Build/Installer/PeribindSetup_0.2.1.exe
+- upload to VPS downloads folder and publish URL:
+  - https://download.peribind.com/downloads/PeribindSetup_0.2.1.exe
+- required wiring choice (pick one):
+  1) versioned link in website HTML
+     - update website link every release to new filename (0.2.2, 0.2.3, ...)
+  2) stable alias link (recommended)
+     - keep website link constant:
+     - keep website link constant:
+       https://download.peribind.com/downloads/PeribindSetup_latest.exe
+     - on each release repoint alias on VPS:
+       ln -sfn /var/www/peribind/downloads/PeribindSetup_0.2.1.exe /var/www/peribind/downloads/PeribindSetup_latest.exe
 
 
 4) Upload and apply server-side binaries (VPS)
@@ -113,10 +145,13 @@ Environment=PERIBIND_INTERNAL_API_TOKEN=<strong_random_token>
 --------------------------------------
 [VPS] check file presence:
 ls -lah /var/www/peribind/downloads/PeribindClient_0.2.1.zip
+ls -lah /var/www/peribind/downloads/PeribindSetup_0.2.1.exe
 ls -lah /var/www/peribind/patch-notes/0.2.1.html
 
 [LOCAL] check public links:
 curl -I https://download.peribind.com/downloads/PeribindClient_0.2.1.zip
+curl -I https://download.peribind.com/downloads/PeribindSetup_0.2.1.exe
+curl -I https://download.peribind.com/downloads/PeribindSetup_latest.exe
 curl -I https://download.peribind.com/patch-notes/0.2.1.html
 
 
@@ -181,14 +216,20 @@ PERIBIND_INTERNAL_API_TOKEN='<TOKEN_IF_CONFIGURED>' npm run smoke:lifecycle
    - hash verification passes
    - game starts
    - login works
+4. Installer validation:
+   - run Build/Installer/PeribindSetup_0.2.1.exe
+   - install to default path
+   - launch from Start Menu shortcut
+   - launcher starts and updates game normally
+   - launcher writes game under %LOCALAPPDATA%\Peribind\game (not Program Files)
 
 
 9) Rollback procedure (quick)
 -----------------------------
 If bad release is published:
 
-[VPS] republish previous known-good version:
 curl -X POST http://127.0.0.1:8080/release/publish \
+[VPS] republish previous known-good version:
   -H "Content-Type: application/json" \
   -H "x-admin-token: <PERIBIND_RELEASE_ADMIN_TOKEN>" \
   -d '{"channel":"stable","platform":"win64","version":"0.2.0","minSupportedVersion":"0.2.0","downloadUrl":"https://download.peribind.com/downloads/PeribindClient_0.2.0.zip","sha256":"<OLD_SHA256>","notesUrl":"https://download.peribind.com/patch-notes/0.2.0.html","sizeBytes":58182703}'

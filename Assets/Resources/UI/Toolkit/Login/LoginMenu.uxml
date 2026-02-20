@@ -1,0 +1,28 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/Resources/UI/Toolkit/Common/PeribindTheme.uss?fileID=7433441132597879392&amp;guid=61d1ac9672314734ab92d2d149f52768&amp;type=3#PeribindTheme"/>
+    <Style src="project://database/Assets/Resources/UI/Toolkit/Login/LoginMenu.uss?fileID=7433441132597879392&amp;guid=71df7bc5100b39c4cbe9de2a44f0b3b0&amp;type=3#LoginMenu"/>
+    <ui:VisualElement name="login-screen-root" class="screen-root login-screen">
+        <ui:VisualElement class="screen-background-overlay" picking-mode="Ignore"/>
+        <ui:VisualElement class="screen-card login-card">
+            <ui:Label name="title-label" text="Peribind" class="title-text"/>
+            <ui:VisualElement name="login-panel" class="auth-panel">
+                <ui:Label text="Sign In" class="section-title"/>
+                <ui:Label name="login-info-label" text="" class="info-label"/>
+                <ui:VisualElement class="button-column">
+                    <ui:Button name="login-submit-button" text="Sign In" class="primary-button"/>
+                    <ui:Button name="open-register-button" text="Create Account" class="secondary-button"/>
+                    <ui:Button name="quit-button" text="Quit" class="danger-button"/>
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="register-panel" class="auth-panel">
+                <ui:Label text="Create Account" class="section-title"/>
+                <ui:Label name="register-mode-info-label" text="" class="mode-info-label"/>
+                <ui:Label name="register-info-label" text="" class="info-label"/>
+                <ui:VisualElement class="button-column">
+                    <ui:Button name="register-submit-button" text="Create Account" class="primary-button"/>
+                    <ui:Button name="return-login-button" text="Back To Login" class="secondary-button"/>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

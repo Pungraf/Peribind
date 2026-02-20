@@ -1,183 +1,118 @@
 using Peribind.Unity.Networking;
-using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 using Unity.Services.Authentication;
 using Unity.Services.Authentication.PlayerAccounts;
-using System.Text.RegularExpressions;
+using UIDocument = UnityEngine.UIElements.UIDocument;
+using UiButton = UnityEngine.UIElements.Button;
+using UiLabel = UnityEngine.UIElements.Label;
+using UiVisualElement = UnityEngine.UIElements.VisualElement;
+using UiDisplayStyle = UnityEngine.UIElements.DisplayStyle;
+using VisualTreeAsset = UnityEngine.UIElements.VisualTreeAsset;
+using StyleSheet = UnityEngine.UIElements.StyleSheet;
 
 namespace Peribind.Unity.UI
 {
     public class LoginMenu : MonoBehaviour
     {
-        [Header("Panels")]
-        [SerializeField] private GameObject loginPanel;
-        [SerializeField] private GameObject registerPanel;
-
-        [Header("Login")]
-        [SerializeField] private TMP_InputField loginInput;
-        [SerializeField] private TMP_InputField passwordInput;
-        [SerializeField] private TMP_Text loginInfoText;
-        [SerializeField] private Button loginButton;
-        [SerializeField] private Button registerButton;
-        [SerializeField] private Button quitButton;
-
-        [Header("Register")]
-        [SerializeField] private TMP_InputField registerLoginInput;
-        [SerializeField] private TMP_InputField registerPasswordInput;
-        [SerializeField] private TMP_InputField registerConfirmPasswordInput;
-        [SerializeField] private TMP_Text registerInfoText;
-        [SerializeField] private Button registerSubmitButton;
-        [SerializeField] private Button returnButton;
-
         [Header("Flow")]
         [SerializeField] private UgsBootstrap ugsBootstrap;
         [SerializeField] private MatchRegistryClient matchRegistryClient;
         [SerializeField] private string nextSceneName = "StarterScene";
         [SerializeField] private bool proceedToNextSceneAfterRegister = true;
-        [SerializeField] private bool useUnityPlayerAccounts = true;
 
         [Header("Client Version Gate")]
         [SerializeField] private bool enforceMinClientVersion = true;
         [SerializeField] private string releaseChannel = "stable";
         [SerializeField] private string releasePlatform = "win64";
 
+        [Header("UI Toolkit")]
+        [SerializeField] private bool enableUiToolkit = true;
+        [SerializeField] private UIDocument uiDocument;
+        [SerializeField] private bool autoAssignUiDocument = true;
+        [SerializeField] private bool autoAssignVisualTreeFromResources = true;
+        [SerializeField] private bool autoAssignStylesFromResources = true;
+
+        private const string LoginUxmlResourcePath = "UI/Toolkit/Login/LoginMenu";
+        private const string CommonStyleResourcePath = "UI/Toolkit/Common/PeribindTheme";
+        private const string LoginStyleResourcePath = "UI/Toolkit/Login/LoginMenu";
+        private const string LoginPanelName = "login-panel";
+        private const string RegisterPanelName = "register-panel";
+        private const string LoginInfoName = "login-info-label";
+        private const string RegisterInfoName = "register-info-label";
+        private const string RegisterModeInfoName = "register-mode-info-label";
+        private const string DefaultLoginInfoMessage = "Sign in with your Unity Player Account in browser.";
+        private const string LoginButtonName = "login-submit-button";
+        private const string RegisterPanelButtonName = "open-register-button";
+        private const string QuitButtonName = "quit-button";
+        private const string RegisterSubmitButtonName = "register-submit-button";
+        private const string ReturnButtonName = "return-login-button";
+
         private bool _isSubmitting;
-        private static readonly Regex EmailRegex =
-            new Regex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        private bool _isLoginPanelVisible = true;
+        private bool _uiToolkitCallbacksRegistered;
+
+        private UiVisualElement _uiRoot;
+        private UiVisualElement _uiLoginPanel;
+        private UiVisualElement _uiRegisterPanel;
+        private UiLabel _uiLoginInfoLabel;
+        private UiLabel _uiRegisterInfoLabel;
+        private UiLabel _uiRegisterModeInfoLabel;
+        private UiButton _uiLoginButton;
+        private UiButton _uiRegisterPanelButton;
+        private UiButton _uiQuitButton;
+        private UiButton _uiRegisterSubmitButton;
+        private UiButton _uiReturnButton;
 
         private void Awake()
         {
-            if (loginButton != null)
-            {
-                loginButton.onClick.AddListener(OnLoginClicked);
-            }
-
-            if (registerButton != null)
-            {
-                registerButton.onClick.AddListener(OnRegisterPanelClicked);
-            }
-
-            if (quitButton != null)
-            {
-                quitButton.onClick.AddListener(OnQuitClicked);
-            }
-
-            if (registerSubmitButton != null)
-            {
-                registerSubmitButton.onClick.AddListener(OnRegisterSubmitClicked);
-            }
-
-            if (returnButton != null)
-            {
-                returnButton.onClick.AddListener(OnReturnToLoginClicked);
-            }
-
-            SetPasswordMode(passwordInput);
-            SetEmailMode(loginInput);
-            SetPasswordMode(registerPasswordInput);
-            SetPasswordMode(registerConfirmPasswordInput);
-            SetEmailMode(registerLoginInput);
-
+            TryBindUiToolkit();
             SetPanelState(showLogin: true);
             SetLoginInfo(string.Empty);
             SetRegisterInfo(string.Empty);
-            FocusInput(loginInput);
+            ApplyAuthModePresentation();
         }
 
         private void Update()
         {
-            if (!IsLoginPanelActive())
+            if (enableUiToolkit && _uiRoot == null)
+            {
+                TryBindUiToolkit();
+            }
+
+            var keyboard = Keyboard.current;
+            if (keyboard == null)
             {
                 return;
             }
 
-            var selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
-            if (selected == null)
+            if (!keyboard.enterKey.wasPressedThisFrame && !keyboard.numpadEnterKey.wasPressedThisFrame)
             {
                 return;
             }
 
-            if (Keyboard.current != null && Keyboard.current.tabKey.wasPressedThisFrame)
+            if (_isLoginPanelVisible)
             {
-                if (selected == loginInput?.gameObject)
-                {
-                    FocusInput(passwordInput);
-                }
-                else if (selected == passwordInput?.gameObject)
-                {
-                    FocusInput(loginInput);
-                }
+                OnLoginClicked();
             }
-
-            if (Keyboard.current != null &&
-                (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.numpadEnterKey.wasPressedThisFrame))
+            else
             {
-                if (selected == loginInput?.gameObject || selected == passwordInput?.gameObject)
-                {
-                    OnLoginClicked();
-                }
+                OnRegisterSubmitClicked();
             }
         }
 
         private void OnDestroy()
         {
-            if (loginButton != null)
-            {
-                loginButton.onClick.RemoveListener(OnLoginClicked);
-            }
-
-            if (quitButton != null)
-            {
-                quitButton.onClick.RemoveListener(OnQuitClicked);
-            }
-
-            if (registerButton != null)
-            {
-                registerButton.onClick.RemoveListener(OnRegisterPanelClicked);
-            }
-
-            if (registerSubmitButton != null)
-            {
-                registerSubmitButton.onClick.RemoveListener(OnRegisterSubmitClicked);
-            }
-
-            if (returnButton != null)
-            {
-                returnButton.onClick.RemoveListener(OnReturnToLoginClicked);
-            }
+            UnregisterUiToolkitCallbacks();
         }
 
         private async void OnLoginClicked()
         {
             if (_isSubmitting)
             {
-                if (!useUnityPlayerAccounts)
-                {
-                    return;
-                }
-
                 CancelPendingPlayerAccountFlow("Previous browser authentication cancelled. Restarting sign-in...");
-            }
-
-            var login = loginInput != null ? loginInput.text : string.Empty;
-            if (!useUnityPlayerAccounts)
-            {
-                var password = passwordInput != null ? passwordInput.text : string.Empty;
-                if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password))
-                {
-                    SetLoginInfo("Enter email and password.");
-                    return;
-                }
-
-                if (!LooksLikeEmail(login))
-                {
-                    SetLoginInfo("Enter a valid email address.");
-                    return;
-                }
             }
 
             var versionGate = await EnsureClientVersionAllowedAsync(SetLoginInfo);
@@ -198,31 +133,18 @@ namespace Peribind.Unity.UI
             }
 
             _isSubmitting = true;
-            if (!useUnityPlayerAccounts)
-            {
-                SetButtonsInteractable(false);
-            }
-            SetLoginInfo(useUnityPlayerAccounts ? "Opening browser for sign-in..." : "Signing in...");
+            SetButtonsInteractable(false);
+            SetLoginInfo("Opening browser for sign-in...");
             try
             {
-                UgsBootstrap.AuthOperationResult result;
-                if (useUnityPlayerAccounts)
-                {
-                    result = await ugsBootstrap.SignInWithPlayerAccountAsync(isSignUpFlow: false);
-                }
-                else
-                {
-                    var password = passwordInput != null ? passwordInput.text : string.Empty;
-                    result = await ugsBootstrap.SignInWithUsernamePasswordAsync(login, password);
-                }
-
+                var result = await ugsBootstrap.SignInWithPlayerAccountAsync(isSignUpFlow: false);
                 if (!result.Success)
                 {
-                    SetLoginInfo(string.IsNullOrWhiteSpace(result.Message) ? "Invalid email or password." : result.Message);
+                    SetLoginInfo(string.IsNullOrWhiteSpace(result.Message) ? "Sign-in failed." : result.Message);
                     return;
                 }
 
-                await SyncPlayerProfileAsync(ResolveProfileUsername(login));
+                await SyncPlayerProfileAsync();
 
                 SetLoginInfo("Login successful.");
                 ClearSelection();
@@ -238,85 +160,11 @@ namespace Peribind.Unity.UI
             }
         }
 
-        private void OnQuitClicked()
-        {
-            ClearSelection();
-            UnityEngine.Application.Quit();
-        }
-
-        public void OpenPlayerAccountPortal()
-        {
-            var url = "https://player-account.unity.com";
-            try
-            {
-                if (PlayerAccountService.Instance != null && !string.IsNullOrWhiteSpace(PlayerAccountService.Instance.AccountPortalUrl))
-                {
-                    url = PlayerAccountService.Instance.AccountPortalUrl;
-                }
-            }
-            catch
-            {
-                // Fallback to default URL.
-            }
-
-            UnityEngine.Application.OpenURL(url);
-            SetLoginInfo("Open browser account portal for password reset and account management.");
-        }
-
-        private void OnRegisterPanelClicked()
-        {
-            if (_isSubmitting)
-            {
-                if (!useUnityPlayerAccounts)
-                {
-                    return;
-                }
-
-                CancelPendingPlayerAccountFlow("Browser authentication cancelled.");
-            }
-
-            SetPanelState(showLogin: false);
-            SetRegisterInfo(useUnityPlayerAccounts
-                ? "Account creation continues in browser."
-                : string.Empty);
-            ClearSelection();
-        }
-
         private async void OnRegisterSubmitClicked()
         {
             if (_isSubmitting)
             {
-                if (!useUnityPlayerAccounts)
-                {
-                    return;
-                }
-
                 CancelPendingPlayerAccountFlow("Previous browser authentication cancelled. Restarting registration...");
-            }
-
-            var login = registerLoginInput != null ? registerLoginInput.text : string.Empty;
-            if (!useUnityPlayerAccounts)
-            {
-                var password = registerPasswordInput != null ? registerPasswordInput.text : string.Empty;
-                var confirm = registerConfirmPasswordInput != null ? registerConfirmPasswordInput.text : string.Empty;
-
-                if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(confirm))
-                {
-                    SetRegisterInfo("Fill all fields.");
-                    return;
-                }
-
-                if (!LooksLikeEmail(login))
-                {
-                    SetRegisterInfo("Enter a valid email address.");
-                    return;
-                }
-
-                if (!string.Equals(password, confirm, System.StringComparison.Ordinal))
-                {
-                    SetRegisterInfo("Password and confirmation do not match.");
-                    return;
-                }
             }
 
             var versionGate = await EnsureClientVersionAllowedAsync(SetRegisterInfo);
@@ -337,31 +185,18 @@ namespace Peribind.Unity.UI
             }
 
             _isSubmitting = true;
-            if (!useUnityPlayerAccounts)
-            {
-                SetButtonsInteractable(false);
-            }
-            SetRegisterInfo(useUnityPlayerAccounts ? "Opening browser for registration..." : "Creating account...");
+            SetButtonsInteractable(false);
+            SetRegisterInfo("Opening browser for registration...");
             try
             {
-                UgsBootstrap.AuthOperationResult result;
-                if (useUnityPlayerAccounts)
-                {
-                    result = await ugsBootstrap.SignInWithPlayerAccountAsync(isSignUpFlow: true);
-                }
-                else
-                {
-                    var password = registerPasswordInput != null ? registerPasswordInput.text : string.Empty;
-                    result = await ugsBootstrap.RegisterWithUsernamePasswordAsync(login, password);
-                }
-
+                var result = await ugsBootstrap.SignInWithPlayerAccountAsync(isSignUpFlow: true);
                 if (!result.Success)
                 {
                     SetRegisterInfo(string.IsNullOrWhiteSpace(result.Message) ? "Registration failed." : result.Message);
                     return;
                 }
 
-                await SyncPlayerProfileAsync(ResolveProfileUsername(login));
+                await SyncPlayerProfileAsync();
 
                 SetRegisterInfo("Registration successful.");
                 if (proceedToNextSceneAfterRegister && !string.IsNullOrWhiteSpace(nextSceneName))
@@ -377,24 +212,33 @@ namespace Peribind.Unity.UI
             }
         }
 
+        private void OnRegisterPanelClicked()
+        {
+            if (_isSubmitting)
+            {
+                CancelPendingPlayerAccountFlow("Browser authentication cancelled.");
+            }
+
+            SetPanelState(showLogin: false);
+            SetRegisterInfo("Account creation continues in browser.");
+            ClearSelection();
+        }
+
         private void OnReturnToLoginClicked()
         {
             if (_isSubmitting)
             {
-                if (!useUnityPlayerAccounts)
-                {
-                    return;
-                }
-
                 CancelPendingPlayerAccountFlow("Browser authentication cancelled.");
             }
 
-            if (registerLoginInput != null) registerLoginInput.text = string.Empty;
-            if (registerPasswordInput != null) registerPasswordInput.text = string.Empty;
-            if (registerConfirmPasswordInput != null) registerConfirmPasswordInput.text = string.Empty;
             SetRegisterInfo(string.Empty);
             SetPanelState(showLogin: true);
-            FocusInput(loginInput);
+        }
+
+        private void OnQuitClicked()
+        {
+            ClearSelection();
+            UnityEngine.Application.Quit();
         }
 
         private void CancelPendingPlayerAccountFlow(string infoMessage)
@@ -411,7 +255,7 @@ namespace Peribind.Unity.UI
             SetRegisterInfo(infoMessage);
         }
 
-        private void ClearSelection()
+        private static void ClearSelection()
         {
             var eventSystem = EventSystem.current;
             if (eventSystem != null)
@@ -422,123 +266,212 @@ namespace Peribind.Unity.UI
 
         private void SetButtonsInteractable(bool interactable)
         {
-            if (loginButton != null)
-            {
-                loginButton.interactable = interactable;
-            }
-
-            if (registerButton != null)
-            {
-                registerButton.interactable = interactable;
-            }
-
-            if (quitButton != null)
-            {
-                quitButton.interactable = interactable;
-            }
-
-            if (registerSubmitButton != null)
-            {
-                registerSubmitButton.interactable = interactable;
-            }
-
-            if (returnButton != null)
-            {
-                returnButton.interactable = interactable;
-            }
+            _uiLoginButton?.SetEnabled(interactable);
+            _uiRegisterPanelButton?.SetEnabled(interactable);
+            _uiQuitButton?.SetEnabled(interactable);
+            _uiRegisterSubmitButton?.SetEnabled(interactable);
+            _uiReturnButton?.SetEnabled(interactable);
         }
 
         private void SetPanelState(bool showLogin)
         {
-            if (loginPanel != null)
+            _isLoginPanelVisible = showLogin;
+
+            if (_uiLoginPanel != null)
             {
-                loginPanel.SetActive(showLogin);
+                _uiLoginPanel.style.display = showLogin ? UiDisplayStyle.Flex : UiDisplayStyle.None;
             }
 
-            if (registerPanel != null)
+            if (_uiRegisterPanel != null)
             {
-                registerPanel.SetActive(!showLogin);
+                _uiRegisterPanel.style.display = showLogin ? UiDisplayStyle.None : UiDisplayStyle.Flex;
             }
-        }
-
-        private bool IsLoginPanelActive()
-        {
-            return loginPanel == null || loginPanel.activeInHierarchy;
-        }
-
-        private void FocusInput(TMP_InputField input)
-        {
-            if (input == null)
-            {
-                return;
-            }
-
-            var eventSystem = EventSystem.current;
-            if (eventSystem != null)
-            {
-                eventSystem.SetSelectedGameObject(input.gameObject);
-            }
-
-            input.ActivateInputField();
-            input.MoveTextEnd(false);
         }
 
         private void SetLoginInfo(string message)
         {
-            if (loginInfoText != null)
+            if (_uiLoginInfoLabel != null)
             {
-                loginInfoText.text = message ?? string.Empty;
+                var resolved = string.IsNullOrWhiteSpace(message) ? DefaultLoginInfoMessage : message;
+                _uiLoginInfoLabel.text = resolved;
+                _uiLoginInfoLabel.style.display = UiDisplayStyle.Flex;
             }
         }
 
         private void SetRegisterInfo(string message)
         {
-            if (registerInfoText != null)
+            if (_uiRegisterInfoLabel != null)
             {
-                registerInfoText.text = message ?? string.Empty;
+                var resolved = message ?? string.Empty;
+                _uiRegisterInfoLabel.text = resolved;
+                _uiRegisterInfoLabel.style.display = string.IsNullOrWhiteSpace(resolved) ? UiDisplayStyle.None : UiDisplayStyle.Flex;
             }
         }
 
-        private static void SetPasswordMode(TMP_InputField input)
+        private void ApplyAuthModePresentation()
         {
-            if (input == null)
+            SetLoginInfo(DefaultLoginInfoMessage);
+
+            if (_uiRegisterModeInfoLabel != null)
+            {
+                _uiRegisterModeInfoLabel.text = "Account creation continues in browser.";
+            }
+        }
+
+        private void TryBindUiToolkit()
+        {
+            if (!enableUiToolkit)
             {
                 return;
             }
 
-            input.contentType = TMP_InputField.ContentType.Password;
-            input.ForceLabelUpdate();
-        }
+            if (uiDocument == null && autoAssignUiDocument)
+            {
+                uiDocument = FindObjectOfType<UIDocument>(true);
+            }
 
-        private static void SetEmailMode(TMP_InputField input)
-        {
-            if (input == null)
+            if (uiDocument == null)
             {
                 return;
             }
 
-            input.contentType = TMP_InputField.ContentType.EmailAddress;
-            input.ForceLabelUpdate();
-        }
-
-        private static bool LooksLikeEmail(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
+            if (autoAssignVisualTreeFromResources && uiDocument.visualTreeAsset == null)
             {
-                return false;
+                var tree = Resources.Load<VisualTreeAsset>(LoginUxmlResourcePath);
+                if (tree == null)
+                {
+                    Debug.LogWarning($"[LoginMenuUITK] Missing UXML at Resources/{LoginUxmlResourcePath}.uxml");
+                    return;
+                }
+
+                uiDocument.visualTreeAsset = tree;
             }
 
-            return EmailRegex.IsMatch(value.Trim());
+            _uiRoot = uiDocument.rootVisualElement;
+            if (_uiRoot == null)
+            {
+                return;
+            }
+
+            if (autoAssignStylesFromResources)
+            {
+                TryAddStyle(_uiRoot, CommonStyleResourcePath);
+                TryAddStyle(_uiRoot, LoginStyleResourcePath);
+            }
+
+            _uiLoginPanel = UnityEngine.UIElements.UQueryExtensions.Q<UiVisualElement>(_uiRoot, LoginPanelName);
+            _uiRegisterPanel = UnityEngine.UIElements.UQueryExtensions.Q<UiVisualElement>(_uiRoot, RegisterPanelName);
+            _uiLoginInfoLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, LoginInfoName);
+            _uiRegisterInfoLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, RegisterInfoName);
+            _uiRegisterModeInfoLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, RegisterModeInfoName);
+            _uiLoginButton = UnityEngine.UIElements.UQueryExtensions.Q<UiButton>(_uiRoot, LoginButtonName);
+            _uiRegisterPanelButton = UnityEngine.UIElements.UQueryExtensions.Q<UiButton>(_uiRoot, RegisterPanelButtonName);
+            _uiQuitButton = UnityEngine.UIElements.UQueryExtensions.Q<UiButton>(_uiRoot, QuitButtonName);
+            _uiRegisterSubmitButton = UnityEngine.UIElements.UQueryExtensions.Q<UiButton>(_uiRoot, RegisterSubmitButtonName);
+            _uiReturnButton = UnityEngine.UIElements.UQueryExtensions.Q<UiButton>(_uiRoot, ReturnButtonName);
+
+            RegisterUiToolkitCallbacks();
+            ApplyAuthModePresentation();
+            SetPanelState(_isLoginPanelVisible);
         }
 
-        private async System.Threading.Tasks.Task SyncPlayerProfileAsync(string username)
+        private void RegisterUiToolkitCallbacks()
+        {
+            if (_uiToolkitCallbacksRegistered)
+            {
+                return;
+            }
+
+            if (_uiLoginButton != null)
+            {
+                _uiLoginButton.clicked += OnLoginClicked;
+            }
+
+            if (_uiRegisterPanelButton != null)
+            {
+                _uiRegisterPanelButton.clicked += OnRegisterPanelClicked;
+            }
+
+            if (_uiQuitButton != null)
+            {
+                _uiQuitButton.clicked += OnQuitClicked;
+            }
+
+            if (_uiRegisterSubmitButton != null)
+            {
+                _uiRegisterSubmitButton.clicked += OnRegisterSubmitClicked;
+            }
+
+            if (_uiReturnButton != null)
+            {
+                _uiReturnButton.clicked += OnReturnToLoginClicked;
+            }
+
+            _uiToolkitCallbacksRegistered = true;
+        }
+
+        private void UnregisterUiToolkitCallbacks()
+        {
+            if (!_uiToolkitCallbacksRegistered)
+            {
+                return;
+            }
+
+            if (_uiLoginButton != null)
+            {
+                _uiLoginButton.clicked -= OnLoginClicked;
+            }
+
+            if (_uiRegisterPanelButton != null)
+            {
+                _uiRegisterPanelButton.clicked -= OnRegisterPanelClicked;
+            }
+
+            if (_uiQuitButton != null)
+            {
+                _uiQuitButton.clicked -= OnQuitClicked;
+            }
+
+            if (_uiRegisterSubmitButton != null)
+            {
+                _uiRegisterSubmitButton.clicked -= OnRegisterSubmitClicked;
+            }
+
+            if (_uiReturnButton != null)
+            {
+                _uiReturnButton.clicked -= OnReturnToLoginClicked;
+            }
+
+            _uiToolkitCallbacksRegistered = false;
+        }
+
+        private static void TryAddStyle(UiVisualElement root, string resourcePath)
+        {
+            if (root == null || string.IsNullOrWhiteSpace(resourcePath))
+            {
+                return;
+            }
+
+            var styleSheet = Resources.Load<StyleSheet>(resourcePath);
+            if (styleSheet == null)
+            {
+                return;
+            }
+
+            if (!root.styleSheets.Contains(styleSheet))
+            {
+                root.styleSheets.Add(styleSheet);
+            }
+        }
+
+        private async System.Threading.Tasks.Task SyncPlayerProfileAsync()
         {
             if (matchRegistryClient == null)
             {
                 matchRegistryClient = FindObjectOfType<MatchRegistryClient>(true);
             }
 
-            if (matchRegistryClient == null || string.IsNullOrWhiteSpace(username))
+            if (matchRegistryClient == null)
             {
                 return;
             }
@@ -563,14 +496,17 @@ namespace Peribind.Unity.UI
                 return;
             }
 
-            // Keep current custom display name on login/register sync.
+            var username = ResolveProfileUsername(playerId);
+            if (string.IsNullOrWhiteSpace(username))
+            {
+                return;
+            }
+
             await matchRegistryClient.UpsertPlayerAsync(playerId, username);
         }
 
-        private static string ResolveProfileUsername(string fallbackUsername)
+        private static string ResolveProfileUsername(string fallback)
         {
-            var fallback = string.IsNullOrWhiteSpace(fallbackUsername) ? string.Empty : fallbackUsername.Trim();
-
             try
             {
                 var claims = PlayerAccountService.Instance?.IdTokenClaims;
@@ -584,19 +520,7 @@ namespace Peribind.Unity.UI
                 // Best effort only.
             }
 
-            try
-            {
-                if (AuthenticationService.Instance != null && !string.IsNullOrWhiteSpace(AuthenticationService.Instance.PlayerId))
-                {
-                    return string.IsNullOrWhiteSpace(fallback) ? AuthenticationService.Instance.PlayerId : fallback;
-                }
-            }
-            catch
-            {
-                // Best effort only.
-            }
-
-            return fallback;
+            return string.IsNullOrWhiteSpace(fallback) ? string.Empty : fallback.Trim();
         }
 
         private async System.Threading.Tasks.Task<bool> EnsureClientVersionAllowedAsync(System.Action<string> setInfo)
@@ -628,14 +552,15 @@ namespace Peribind.Unity.UI
                 return true;
             }
 
-            var message =
-                $"Update required. Current {currentVersion}, minimum {release.minSupportedVersion}.";
+            var message = $"Update required. Current {currentVersion}, minimum {release.minSupportedVersion}.";
             if (!string.IsNullOrWhiteSpace(release.downloadUrl))
             {
                 message = $"{message} Download latest client.";
             }
+
             setInfo?.Invoke(message);
             return false;
         }
     }
 }
+

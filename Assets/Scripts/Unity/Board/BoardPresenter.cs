@@ -34,6 +34,23 @@ namespace Peribind.Unity.Board
 
         public int PlacementRevision => _placementRevision;
         public int CurrentPlayerId => _session != null ? _session.CurrentPlayerId : 0;
+        public int LocalPlayerId
+        {
+            get
+            {
+                if (networkController != null)
+                {
+                    var localPlayerId = networkController.LocalPlayerId;
+                    if (localPlayerId >= 0)
+                    {
+                        return localPlayerId;
+                    }
+                }
+
+                return CurrentPlayerId;
+            }
+        }
+
         public bool IsPlayerTurn => _session != null && _session.Phase == GamePhase.PlayerTurn;
         public Color CurrentPlayerColor => ResolvePreviewColor();
         private void Awake()
@@ -491,6 +508,46 @@ namespace Peribind.Unity.Board
             }
 
             return _session.GetRemainingCount(_session.CurrentPlayerId, pieceId);
+        }
+
+        public int GetRemainingCountForPlayer(int playerId, string pieceId)
+        {
+            if (_session == null || playerId < 0)
+            {
+                return 0;
+            }
+
+            return _session.GetRemainingCount(playerId, pieceId);
+        }
+
+        public bool HasPieceForPlayer(int playerId, string pieceId)
+        {
+            return GetRemainingCountForPlayer(playerId, pieceId) > 0;
+        }
+
+        public bool IsLocalPlayerTurn()
+        {
+            if (_session == null || _session.Phase != GamePhase.PlayerTurn || _session.IsGameOver)
+            {
+                return false;
+            }
+
+            if (networkController == null)
+            {
+                return true;
+            }
+
+            return networkController.IsLocalPlayerTurn();
+        }
+
+        public Color GetPlayerColor(int playerId)
+        {
+            if (gameConfig == null)
+            {
+                return Color.white;
+            }
+
+            return playerId == 0 ? gameConfig.PlayerOneColor : gameConfig.PlayerTwoColor;
         }
 
         public int CurrentRound => _session != null ? _session.CurrentRound : 1;
