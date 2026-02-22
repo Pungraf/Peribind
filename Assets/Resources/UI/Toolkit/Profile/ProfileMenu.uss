@@ -5,10 +5,6 @@
     padding-bottom: 20px;
 }
 
-.profile-screen .screen-background-overlay {
-    background-image: url("../png/overlay_vignette_1920x1080.png");
-}
-
 .profile-card {
     width: 100%;
     max-width: 1180px;
@@ -43,7 +39,8 @@
 
 .profile-header-playerid {
     margin-left: 14px;
-    margin-bottom: 8px;
+    margin-bottom: 0;
+    translate: 0 6px;
     font-size: 15px;
     color: var(--pb-text-1);
     unity-text-align: middle-left;
@@ -109,6 +106,15 @@
     min-height: 84px;
     padding-left: 39px;
     font-size: 36px;
+}
+
+.profile-display-name-input > .unity-base-field__input > .unity-text-input,
+.profile-display-name-input > .unity-base-field__input > .unity-text-element,
+.profile-display-name-input .unity-text-input,
+.profile-display-name-input .unity-text-element {
+    translate: 0 -10px;
+    -unity-text-align: middle-left;
+    unity-text-align: middle-left;
 }
 
 .profile-save-button {
@@ -178,6 +184,7 @@
 .profile-records-header {
     flex-direction: column;
     align-items: flex-start;
+    margin-top: 45px;
 }
 
 .profile-records-title {
@@ -248,16 +255,17 @@
     align-items: flex-start;
     justify-content: center;
     width: 100%;
+    margin-top: 50px;
 }
 
 .stat-card {
-    width: 41.2%;
+    width: 45.6%;
     min-width: 0;
-    min-height: 62px;
-    margin-top: 4px;
-    margin-bottom: 6px;
-    margin-left: 6px;
-    margin-right: 6px;
+    min-height: 78px;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    margin-right: 0;
     padding-left: 16px;
     padding-right: 16px;
     padding-top: 6px;
@@ -280,6 +288,7 @@
     white-space: normal;
     line-height: 13px;
     unity-text-align: middle-left;
+    translate: 0 -4px;
 }
 
 .stat-value {
@@ -288,7 +297,9 @@
     -unity-font-style: bold;
     color: rgb(248, 236, 204);
     margin-left: 8px;
+    margin-right: 5px;
     unity-text-align: middle-right;
+    translate: 0 -8px;
 }
 
 .profile-records-grid {
@@ -329,6 +340,10 @@
     overflow: hidden;
 }
 
+.history-row-card .unity-label {
+    translate: 0 -4px;
+}
+
 .leaderboard-row-card {
     flex-direction: row;
     align-items: center;
@@ -348,12 +363,14 @@
     -unity-font-style: bold;
     color: rgb(248, 236, 204);
     unity-text-align: middle-left;
+    translate: 0 -6px;
 }
 
 .leaderboard-name {
     flex-grow: 1;
     color: var(--pb-text-on-dark);
     font-size: 15px;
+    translate: 0 -6px;
 }
 
 .leaderboard-name-local {
@@ -366,10 +383,33 @@
     padding-right: 15px;
 }
 
-.leaderboard-metric {
+.leaderboard-metric-token {
+    flex-direction: row;
+    align-items: center;
     margin-left: 12px;
+}
+
+.leaderboard-metric-token:first-child {
+    margin-left: 0;
+}
+
+.leaderboard-metric-prefix {
     color: var(--pb-text-on-dark);
-    font-size: 14px;
+    font-size: 15px;
+    -unity-font-style: bold;
+    translate: 0 -6px;
+    line-height: 16px;
+    unity-text-align: middle-left;
+}
+
+.leaderboard-metric-number {
+    margin-left: 2px;
+    color: var(--pb-text-on-dark);
+    font-size: 15px;
+    -unity-font-style: bold;
+    translate: 0 -10px;
+    line-height: 16px;
+    unity-text-align: middle-left;
 }
 
 .history-row-card {
@@ -381,7 +421,7 @@
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 0;
+    margin-bottom: -4px;
 }
 
 .history-result {
@@ -413,6 +453,8 @@
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
+    margin-top: -2px;
+    line-height: 13px;
 }
 
 .profile-empty-row {

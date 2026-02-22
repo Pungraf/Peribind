@@ -33,6 +33,8 @@ namespace Peribind.Unity.UI
         private const string CommonStyleResourcePath = "UI/Toolkit/Common/PeribindTheme";
         private const string GameHudStyleResourcePath = "UI/Toolkit/Game/GameHud";
         private const string PaletteScrollName = "piece-palette-scroll";
+        private const string PalettePanelClassName = "palette-panel";
+        private const string PalettePanelDisabledClassName = "palette-panel-disabled";
 
         private readonly List<ToolkitPieceRow> _uiRows = new List<ToolkitPieceRow>();
         private int _lastRevision = -1;
@@ -41,6 +43,7 @@ namespace Peribind.Unity.UI
         private bool _lastLocalTurn;
 
         private UiVisualElement _uiRoot;
+        private UiVisualElement _uiPalettePanel;
         private UiScrollView _uiPaletteScroll;
 
         private sealed class ToolkitPieceRow
@@ -88,6 +91,7 @@ namespace Peribind.Unity.UI
             if (enableUiToolkit && _uiPaletteScroll == null && _uiRoot != null)
             {
                 _uiPaletteScroll = UnityEngine.UIElements.UQueryExtensions.Q<UiScrollView>(_uiRoot, PaletteScrollName);
+                _uiPalettePanel = UnityEngine.UIElements.UQueryExtensions.Q<UiVisualElement>(_uiRoot, className: PalettePanelClassName);
                 if (_uiPaletteScroll != null)
                 {
                     BuildUiToolkitButtons();
@@ -213,6 +217,16 @@ namespace Peribind.Unity.UI
             var canSelect = _lastLocalTurn;
             var playerColor = boardPresenter.GetPlayerColor(_lastBenchPlayerId);
             var selectedPiece = pieceSelection.Current;
+
+            if (_uiPalettePanel != null)
+            {
+                _uiPalettePanel.EnableInClassList(PalettePanelDisabledClassName, !canSelect);
+            }
+
+            if (_uiPaletteScroll != null)
+            {
+                _uiPaletteScroll.SetEnabled(canSelect);
+            }
 
             for (var i = 0; i < _uiRows.Count; i++)
             {
@@ -349,6 +363,7 @@ namespace Peribind.Unity.UI
             }
 
             _uiPaletteScroll = UnityEngine.UIElements.UQueryExtensions.Q<UiScrollView>(_uiRoot, PaletteScrollName);
+            _uiPalettePanel = UnityEngine.UIElements.UQueryExtensions.Q<UiVisualElement>(_uiRoot, className: PalettePanelClassName);
             if (_uiPaletteScroll == null)
             {
                 Debug.LogWarning($"[PiecePaletteUITK] Missing '{PaletteScrollName}' in bound UIDocument root.");

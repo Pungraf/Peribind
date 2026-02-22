@@ -5,10 +5,6 @@
     padding-bottom: 20px;
 }
 
-.lobby-screen .screen-background-overlay {
-    background-image: url("../png/overlay_vignette_1920x1080.png");
-}
-
 .lobby-card {
     width: 100%;
     max-width: 1040px;
@@ -288,14 +284,14 @@
 .lobby-row-button .unity-button__text,
 .lobby-row-button .unity-text-element {
     color: var(--pb-text-on-dark);
-    translate: 0px 0px;
+    translate: 0px -12px;
 }
 
 .lobby-row-button:active > .unity-button__text,
 .lobby-row-button:active > .unity-text-element,
 .lobby-row-button:active .unity-button__text,
 .lobby-row-button:active .unity-text-element {
-    translate: 0px 0px;
+    translate: 0px -6px;
 }
 
 .lobby-row-button:hover > .unity-button__text,
@@ -338,7 +334,49 @@
     flex-grow: 1;
     min-height: 64px;
     padding-left: 25px;
-    padding-top: 10px;
-    padding-bottom: 10px;
+    padding-top: 2px;
+    padding-bottom: 18px;
     font-size: 18px;
+}
+
+.lobby-screen TextField > .unity-base-field__input > .unity-text-input,
+.lobby-screen TextField > .unity-base-field__input > .unity-text-element,
+.lobby-screen TextField > .unity-base-field__input .unity-text-input,
+.lobby-screen TextField > .unity-base-field__input .unity-text-element,
+.lobby-screen TextField > .unity-base-field__input > .unity-text-field__input,
+.lobby-screen TextField > .unity-base-field__input .unity-text-field__input,
+.lobby-screen TextField > .unity-base-field__input > .unity-base-text-field__input,
+.lobby-screen TextField > .unity-base-field__input .unity-base-text-field__input {
+    translate: 0 -12px;
+    -unity-text-align: middle-left;
+    unity-text-align: middle-left;
+}
+
+.primary-button.lobby-ready-button-active,
+.unity-button.primary-button.lobby-ready-button-active,
+.primary-button.lobby-ready-button-active:hover,
+.unity-button.primary-button.lobby-ready-button-active:hover,
+.primary-button.lobby-ready-button-active:active,
+.unity-button.primary-button.lobby-ready-button-active:active,
+.primary-button.lobby-ready-button-active:active:hover,
+.unity-button.primary-button.lobby-ready-button-active:active:hover {
+    background-image: url("../wooden/btn_big_pressed.png");
+    -unity-slice-left: 15px;
+    -unity-slice-right: 15px;
+    -unity-slice-top: 35px;
+    -unity-slice-bottom: 10px;
+    padding-top: 22px;
+    padding-bottom: 0;
+    color: rgb(167, 229, 173);
+}
+
+.primary-button.lobby-ready-button-active > .unity-button__text,
+.unity-button.primary-button.lobby-ready-button-active > .unity-button__text,
+.primary-button.lobby-ready-button-active > .unity-text-element,
+.unity-button.primary-button.lobby-ready-button-active > .unity-text-element,
+.primary-button.lobby-ready-button-active .unity-button__text,
+.unity-button.primary-button.lobby-ready-button-active .unity-button__text,
+.primary-button.lobby-ready-button-active .unity-text-element,
+.unity-button.primary-button.lobby-ready-button-active .unity-text-element {
+    color: rgb(167, 229, 173);
 }

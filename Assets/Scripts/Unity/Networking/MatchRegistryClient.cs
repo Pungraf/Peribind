@@ -364,6 +364,62 @@ namespace Peribind.Unity.Networking
             return JsonUtility.FromJson<PlayerProfile>(body);
         }
 
+        public async Task<bool> IsDisplayNameAvailableAsync(string displayName, string excludePlayerId = "")
+        {
+            LastErrorMessage = string.Empty;
+            var safeDisplayName = NormalizeDisplayName(displayName);
+            if (string.IsNullOrWhiteSpace(safeDisplayName))
+            {
+                LastErrorMessage = "missing_display_name";
+                return false;
+            }
+
+            var url = $"{baseUrl}/player/display-name/available?displayName={UnityWebRequest.EscapeURL(safeDisplayName)}";
+            var safeExcludePlayerId = NormalizeDisplayName(excludePlayerId);
+            if (!string.IsNullOrWhiteSpace(safeExcludePlayerId))
+            {
+                url += $"&excludePlayerId={UnityWebRequest.EscapeURL(safeExcludePlayerId)}";
+            }
+
+            using var request = UnityWebRequest.Get(url);
+            await request.SendWebRequest();
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                if (request.responseCode == 404)
+                {
+                    LastErrorMessage = "display_name_check_unavailable";
+                    return false;
+                }
+
+                LastErrorMessage = ExtractErrorMessage(request, "display_name_check_failed");
+                return false;
+            }
+
+            var json = request.downloadHandler.text;
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                LastErrorMessage = "display_name_check_failed";
+                return false;
+            }
+
+            var response = JsonUtility.FromJson<DisplayNameAvailabilityResponse>(json);
+            if (response == null)
+            {
+                LastErrorMessage = "display_name_check_failed";
+                return false;
+            }
+
+            if (!response.available)
+            {
+                LastErrorMessage = "display_name_taken";
+                return false;
+            }
+
+            LastErrorMessage = string.Empty;
+            return true;
+        }
+
         public async Task<ReleaseInfo> GetLatestReleaseAsync(string channel, string platform)
         {
             LastErrorMessage = string.Empty;
@@ -475,6 +531,11 @@ namespace Peribind.Unity.Networking
             }
 
             return CompareVersions(currentVersion, minSupportedVersion) >= 0;
+        }
+
+        private static string NormalizeDisplayName(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
         }
 
         private static int CompareVersions(string left, string right)
@@ -699,6 +760,12 @@ namespace Peribind.Unity.Networking
         private class ErrorResponse
         {
             public string error;
+        }
+
+        [Serializable]
+        private class DisplayNameAvailabilityResponse
+        {
+            public bool available;
         }
 
         [Serializable]

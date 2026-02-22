@@ -51,6 +51,7 @@ namespace Peribind.Unity.UI
         private const string ReconnectButtonName = "reconnect-button";
         private const string StatusLabelName = "status-label";
         private const string LobbyListScrollName = "lobby-list-scroll";
+        private const string ReadyButtonActiveClassName = "lobby-ready-button-active";
 
         private bool _isReady;
         private bool _connecting;
@@ -206,6 +207,8 @@ namespace Peribind.Unity.UI
                 return;
             }
 
+            _isReady = false;
+            UpdateReadyButton();
             await lobbyService.LeaveLobbyAsync();
             await RefreshLobbyListAsync();
         }
@@ -307,6 +310,8 @@ namespace Peribind.Unity.UI
             if (lobby == null)
             {
                 SetStatusText("Left lobby.");
+                _isReady = false;
+                UpdateReadyButton();
                 _lastObservedLobbyPlayerCount = -1;
                 _pendingAllocation = null;
                 _pendingAllocationLobbyId = string.Empty;
@@ -614,7 +619,8 @@ namespace Peribind.Unity.UI
         {
             if (_uiReadyButton != null)
             {
-                _uiReadyButton.text = _isReady ? "Ready (OK)" : "Ready";
+                _uiReadyButton.text = "Ready";
+                _uiReadyButton.EnableInClassList(ReadyButtonActiveClassName, _isReady);
             }
         }
 

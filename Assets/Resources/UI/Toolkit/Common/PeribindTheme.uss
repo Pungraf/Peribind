@@ -1,4 +1,6 @@
 :root {
+    -unity-font-definition: resource("UI/Toolkit/Fonts/FeENsc2");
+    -unity-font: resource("UI/Toolkit/Fonts/FeENsc2");
     --pb-bg-0: rgb(24, 20, 17);
     --pb-bg-1: rgb(39, 33, 27);
     --pb-surface-0: rgba(214, 185, 141, 0.94);
@@ -16,6 +18,17 @@
     --pb-radius-sm: 8px;
 }
 
+.unity-text-element,
+Label,
+.unity-label,
+Button,
+.unity-button,
+TextField,
+.unity-base-field__input {
+    -unity-font-definition: resource("UI/Toolkit/Fonts/FeENsc2");
+    -unity-font: resource("UI/Toolkit/Fonts/FeENsc2");
+}
+
 .screen-root {
     flex-grow: 1;
     justify-content: center;
@@ -28,9 +41,9 @@
     right: 0;
     top: 0;
     bottom: 0;
-    background-color: var(--pb-bg-1);
-    background-image: url("../png/overlay_vignette_1920x1080.png");
-    unity-background-scale-mode: stretch-to-fill;
+    background-color: rgba(0, 0, 0, 0);
+    background-image: none;
+    opacity: 1;
 }
 
 .screen-card {
@@ -106,7 +119,7 @@ Button,
     padding-left: 10px;
     padding-right: 10px;
     padding-top: 0;
-    padding-bottom: 18px;
+    padding-bottom: 28px;
     -unity-font-style: bold;
     font-size: 16px;
     background-color: rgba(255, 255, 255, 0);
@@ -124,7 +137,7 @@ Button:hover,
 Button:active,
 .unity-button:active {
     opacity: 1;
-    padding-top: 22px;
+    padding-top: 16px;
     padding-bottom: 0;
 }
 
@@ -145,7 +158,7 @@ Button:disabled,
 .unity-button.secondary-button:disabled,
 .danger-button:disabled,
 .unity-button.danger-button:disabled {
-    padding-top: 22px;
+    padding-top: 16px;
     padding-bottom: 0;
 }
 
@@ -326,10 +339,14 @@ Button:disabled,
 Button > .unity-button__text,
 .unity-button > .unity-button__text,
 Button > .unity-text-element,
-.unity-button > .unity-text-element {
+.unity-button > .unity-text-element,
+Button .unity-button__text,
+.unity-button .unity-button__text,
+Button .unity-text-element,
+.unity-button .unity-text-element {
     color: var(--pb-text-on-dark);
     unity-text-align: middle-center;
-    translate: 0px -4px;
+    translate: 0px -12px;
     margin-top: 0;
     margin-bottom: 0;
 }
@@ -337,7 +354,11 @@ Button > .unity-text-element,
 .danger-button > .unity-button__text,
 .unity-button.danger-button > .unity-button__text,
 .danger-button > .unity-text-element,
-.unity-button.danger-button > .unity-text-element {
+.unity-button.danger-button > .unity-text-element,
+.danger-button .unity-button__text,
+.unity-button.danger-button .unity-button__text,
+.danger-button .unity-text-element,
+.unity-button.danger-button .unity-text-element {
     color: rgb(255, 186, 171);
 }
 
@@ -385,6 +406,15 @@ TextField > .unity-base-field__input {
     border-top-width: 0;
     border-bottom-width: 0;
     color: var(--pb-text-on-dark);
+}
+
+TextField > .unity-base-field__input > .unity-text-input,
+TextField > .unity-base-field__input > .unity-text-element,
+.unity-base-field__input .unity-text-input,
+.unity-base-field__input .unity-text-element {
+    translate: 0 -4px;
+    -unity-text-align: middle-left;
+    unity-text-align: middle-left;
 }
 
 TextField:focus-within > .unity-base-field__input {

@@ -19,10 +19,21 @@
 
         <ui:VisualElement class="hud-actions-panel">
             <ui:VisualElement class="hud-score-stack" picking-mode="Ignore">
-                <ui:Label name="player-one-score-label" class="hud-chip hud-score-chip" text="P1: 0" />
-                <ui:Label name="player-two-score-label" class="hud-chip hud-score-chip" text="P2: 0" />
+                <ui:VisualElement name="player-one-score-chip" class="hud-chip hud-score-chip">
+                    <ui:Label name="player-one-score-name-label" class="hud-score-name" text="P1:" />
+                    <ui:Label name="player-one-score-value-label" class="hud-score-value" text="0" />
+                </ui:VisualElement>
+                <ui:VisualElement name="player-two-score-chip" class="hud-chip hud-score-chip">
+                    <ui:Label name="player-two-score-name-label" class="hud-score-name" text="P2:" />
+                    <ui:Label name="player-two-score-value-label" class="hud-score-value" text="0" />
+                </ui:VisualElement>
             </ui:VisualElement>
-            <ui:Button name="finish-round-button" class="secondary-button hud-finish-button hud-finish-main-button" text="Finish&#10;Round" />
+            <ui:Button name="finish-round-button" class="secondary-button hud-finish-button hud-finish-main-button" text="">
+                <ui:VisualElement class="hud-finish-custom-text" picking-mode="Ignore">
+                    <ui:Label class="hud-finish-custom-line hud-finish-custom-line-top" text="Finish" />
+                    <ui:Label class="hud-finish-custom-line hud-finish-custom-line-bottom" text="Round" />
+                </ui:VisualElement>
+            </ui:Button>
         </ui:VisualElement>
 
         <ui:VisualElement name="menu-backdrop" class="hud-modal-backdrop" picking-mode="Position" />

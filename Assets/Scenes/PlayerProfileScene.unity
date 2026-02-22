@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
+  m_SkyboxMaterial: {fileID: 2100000, guid: 65e3f614cce5817468937744e0fffc81, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -320,20 +320,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Peribind::Peribind.Unity.UI.PlayerProfileMenu
   matchRegistryClient: {fileID: 0}
-  accountInfoText: {fileID: 0}
-  displayNameInput: {fileID: 0}
-  profileInfoText: {fileID: 0}
-  saveDisplayNameButton: {fileID: 0}
-  refreshButton: {fileID: 0}
   displayNameChangeCooldownHours: 24
-  statsText: {fileID: 0}
-  leaderboardContent: {fileID: 0}
-  leaderboardRowPrefab: {fileID: 3486795846948728960, guid: 2f9c450d3270c1240868d387cd9aa080, type: 3}
   leaderboardLimit: 20
-  historyContent: {fileID: 0}
-  historyRowPrefab: {fileID: 1965303592238475686, guid: eecd840affff7fe4ab33ed5ffc962ad0, type: 3}
   historyLimit: 20
-  returnButton: {fileID: 0}
   returnSceneName: StarterScene
   enableUiToolkit: 1
   uiDocument: {fileID: 1969946395}

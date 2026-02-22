@@ -119,6 +119,19 @@
     border-bottom-width: 0;
 }
 
+.palette-panel.palette-panel-disabled {
+    opacity: 0.5;
+    -unity-background-image-tint-color: rgb(175, 175, 175);
+}
+
+.palette-panel.palette-panel-disabled .palette-piece-button {
+    -unity-background-image-tint-color: rgb(170, 170, 170);
+}
+
+.palette-panel.palette-panel-disabled .palette-piece-label {
+    color: rgb(196, 196, 196);
+}
+
 .palette-scroll {
     flex-grow: 1;
     min-height: 0;
@@ -141,8 +154,35 @@
 }
 
 .hud-score-chip {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    column-gap: 10px;
     width: auto;
     unity-text-align: middle-center;
+}
+
+.hud-score-chip > .unity-text-element,
+.hud-score-chip > .unity-label {
+    translate: 0px -13px;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.hud-score-chip > .hud-score-name {
+    font-size: 30px;
+    color: rgb(242, 228, 191);
+    -unity-font-style: bold;
+    unity-text-align: middle-center;
+    translate: 0px -13px;
+}
+
+.hud-score-chip > .hud-score-value {
+    font-size: 30px;
+    color: rgb(242, 228, 191);
+    -unity-font-style: bold;
+    unity-text-align: middle-center;
+    translate: 0px -18px;
 }
 
 .hud-finish-button {
@@ -151,19 +191,32 @@
     font-size: 50px;
 }
 
-.hud-finish-button > .unity-button__text,
-.hud-finish-button > .unity-text-element {
-    font-size: 50px;
-    line-height: 50px;
-    translate: 0px 8px;
-    margin-top: 0;
-    margin-bottom: 0;
+.hud-finish-main-button,
+.unity-button.hud-finish-main-button,
+.hud-finish-main-button:hover,
+.unity-button.hud-finish-main-button:hover {
+    padding-top: 0;
+    padding-bottom: 50px;
 }
 
+.hud-finish-main-button:active,
+.unity-button.hud-finish-main-button:active,
+.hud-finish-main-button:active:hover,
+.unity-button.hud-finish-main-button:active:hover,
+.hud-finish-main-button:checked,
+.unity-button.hud-finish-main-button:checked,
+.hud-finish-main-button:disabled,
+.unity-button.hud-finish-main-button:disabled {
+    padding-top: 16px;
+    padding-bottom: 34px;
+}
+
+.hud-finish-button > .unity-button__text,
+.hud-finish-button > .unity-text-element,
 .hud-finish-button > .unity-label {
     font-size: 50px;
     line-height: 50px;
-    translate: 0px 8px;
+    translate: 0px -14px;
     margin-top: 0;
     margin-bottom: 0;
 }
@@ -173,8 +226,71 @@
 .hud-finish-main-button > .unity-label {
     white-space: normal;
     unity-text-align: middle-center;
-    line-height: 44px;
-    translate: 0px 4px;
+    line-height: 68px;
+    -unity-paragraph-spacing: 12px;
+    translate: 0px -18px;
+}
+
+.hud-finish-main-button > .unity-button__text,
+.hud-finish-main-button > .unity-text-element,
+.hud-finish-main-button > .unity-label {
+    display: none;
+}
+
+.hud-finish-custom-text {
+    flex-grow: 1;
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    row-gap: 8px;
+    translate: 0px 10px;
+}
+
+.hud-finish-custom-line {
+    color: rgb(242, 228, 191);
+    font-size: 50px;
+    -unity-font-style: bold;
+    unity-text-align: middle-center;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.hud-finish-custom-line-top {
+    margin-bottom: 0;
+}
+
+.hud-modal-action-button,
+.unity-button.hud-modal-action-button,
+.hud-modal-action-button:hover,
+.unity-button.hud-modal-action-button:hover,
+.hud-modal-action-button.hud-modal-action-button-ok-state,
+.unity-button.hud-modal-action-button.hud-modal-action-button-ok-state,
+.hud-modal-action-button.hud-modal-action-button-ok-state:hover,
+.unity-button.hud-modal-action-button.hud-modal-action-button-ok-state:hover {
+    padding-top: 0;
+    padding-bottom: 50px;
+}
+
+.hud-modal-action-button:active,
+.unity-button.hud-modal-action-button:active,
+.hud-modal-action-button:active:hover,
+.unity-button.hud-modal-action-button:active:hover,
+.hud-modal-action-button:checked,
+.unity-button.hud-modal-action-button:checked,
+.hud-modal-action-button:disabled,
+.unity-button.hud-modal-action-button:disabled,
+.hud-modal-action-button.hud-modal-action-button-ok-state:active,
+.unity-button.hud-modal-action-button.hud-modal-action-button-ok-state:active,
+.hud-modal-action-button.hud-modal-action-button-ok-state:active:hover,
+.unity-button.hud-modal-action-button.hud-modal-action-button-ok-state:active:hover,
+.hud-modal-action-button.hud-modal-action-button-ok-state:checked,
+.unity-button.hud-modal-action-button.hud-modal-action-button-ok-state:checked,
+.hud-modal-action-button.hud-modal-action-button-ok-state:disabled,
+.unity-button.hud-modal-action-button.hud-modal-action-button-ok-state:disabled {
+    padding-top: 16px;
+    padding-bottom: 34px;
 }
 
 .palette-piece-button {
@@ -218,6 +334,7 @@
 .palette-piece-row {
     flex-direction: row;
     align-items: center;
+    translate: 0px 12px;
 }
 
 .palette-piece-swatch {
@@ -243,7 +360,7 @@
     font-size: 24px;
     color: rgb(242, 228, 191);
     unity-text-align: middle-left;
-    translate: 0px 3px;
+    translate: 0px 15px;
 }
 
 .palette-piece-button:hover .palette-piece-label,
@@ -342,5 +459,5 @@
 .hud-modal-action-button.hud-modal-action-button-ok-state > .unity-label {
     font-size: 60px;
     line-height: 60px;
-    translate: 0px 8px;
+    translate: 0px -18px;
 }

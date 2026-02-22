@@ -229,6 +229,8 @@ PERIBIND_INTERNAL_API_TOKEN='<TOKEN_IF_CONFIGURED>' npm run smoke:lifecycle
 If bad release is published:
 
 curl -X POST http://127.0.0.1:8080/release/publish \
+curl -X POST http://127.0.0.1:8080/release/publish \
+[VPS] republish previous known-good version:
 [VPS] republish previous known-good version:
   -H "Content-Type: application/json" \
   -H "x-admin-token: <PERIBIND_RELEASE_ADMIN_TOKEN>" \

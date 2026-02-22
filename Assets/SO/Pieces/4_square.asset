@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: 4_square
   m_EditorClassIdentifier: Assembly-CSharp::Peribind.Unity.ScriptableObjects.PieceDefinitionSO
   id: 4_square
-  displayName: 4_square
+  displayName: Square
   color: {r: 1, g: 1, b: 1, a: 1}
   icon: {fileID: 21300000, guid: a162b976a73d1284ebc7f73951b28f31, type: 3}
   cells:

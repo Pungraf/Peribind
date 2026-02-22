@@ -207,6 +207,32 @@ async function initDb() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_players_username ON players(username);
   `);
+  try {
+    const duplicates = await pool.query(
+      `SELECT LOWER(display_name) AS normalized_name
+       FROM players
+       WHERE display_name <> ''
+       GROUP BY LOWER(display_name)
+       HAVING COUNT(*) > 1
+       LIMIT 1`
+    );
+
+    if (duplicates.rowCount === 0) {
+      await pool.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_players_display_name_ci
+        ON players (LOWER(display_name))
+        WHERE display_name <> '';
+      `);
+    } else {
+      logEvent("warn", "players_display_name_unique_index_skipped", {
+        reason: "duplicates_present"
+      });
+    }
+  } catch (e) {
+    logEvent("warn", "players_display_name_unique_index_failed", {
+      error: e?.message || "unknown"
+    });
+  }
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS match_results (
@@ -1855,6 +1881,29 @@ app.get("/player/:playerId/last", async (req, res) => {
   res.json(buildMatchPayload(row));
 });
 
+app.get("/player/display-name/available", async (req, res) => {
+  try {
+    const displayName = normalizePlayerText(req.query?.displayName, 64);
+    const excludePlayerId = normalizePlayerText(req.query?.excludePlayerId, 64);
+    if (!displayName) {
+      return res.status(400).json({ error: "missing displayName" });
+    }
+
+    const existing = await pool.query(
+      `SELECT ugs_player_id
+       FROM players
+       WHERE LOWER(display_name) = LOWER($1)
+         AND ($2 = '' OR ugs_player_id <> $2)
+       LIMIT 1`,
+      [displayName, excludePlayerId]
+    );
+
+    return res.json({ available: existing.rowCount === 0 });
+  } catch (e) {
+    return res.status(500).json({ error: e.message || "display_name_check_failed" });
+  }
+});
+
 app.post("/player/upsert", async (req, res) => {
   try {
     const ugsPlayerId = normalizePlayerText(req.body?.ugsPlayerId, 64);
@@ -1867,6 +1916,20 @@ app.post("/player/upsert", async (req, res) => {
 
     if (!username) {
       return res.status(400).json({ error: "missing username" });
+    }
+
+    if (displayName) {
+      const existing = await pool.query(
+        `SELECT ugs_player_id
+         FROM players
+         WHERE LOWER(display_name) = LOWER($1)
+           AND ugs_player_id <> $2
+         LIMIT 1`,
+        [displayName, ugsPlayerId]
+      );
+      if (existing.rowCount > 0) {
+        return res.status(409).json({ error: "display_name_taken" });
+      }
     }
 
     const upsert = await pool.query(
@@ -1886,6 +1949,10 @@ app.post("/player/upsert", async (req, res) => {
 
     return res.json(mapPlayerRow(upsert.rows[0]));
   } catch (e) {
+    if (e && e.code === "23505") {
+      return res.status(409).json({ error: "display_name_taken" });
+    }
+
     return res.status(500).json({ error: e.message || "player_upsert_failed" });
   }
 });

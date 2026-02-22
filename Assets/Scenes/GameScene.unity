@@ -23,10 +23,10 @@ RenderSettings:
   m_AmbientSkyColor: {r: 0.212, g: 0.227, b: 0.259, a: 1}
   m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
   m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
-  m_AmbientIntensity: 1
+  m_AmbientIntensity: 0.23
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
+  m_SkyboxMaterial: {fileID: 2100000, guid: 65e3f614cce5817468937744e0fffc81, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -241,12 +241,12 @@ Transform:
   m_GameObject: {fileID: 309313921}
   serializedVersion: 2
   m_LocalRotation: {x: -0.00011129882, y: -0.0010639197, z: 0.0014810094, w: 0.99999833}
-  m_LocalPosition: {x: -1.60393, y: 0.00001, z: -45.05655}
+  m_LocalPosition: {x: 31.582682, y: 0.00001, z: -58.98913}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 782341147}
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 2040279554}
   m_LocalEulerAnglesHint: {x: -0.013, y: -0.122, z: 0.17}
 --- !u!114 &309313925
 MonoBehaviour:
@@ -444,12 +444,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.5, y: 0, z: 0, w: 0.8660254}
-  m_LocalPosition: {x: 0, y: 10, z: -7}
+  m_LocalRotation: {x: 0.5, y: -0, z: -0, w: 0.8660254}
+  m_LocalPosition: {x: 33.18661, y: 10, z: -20.932579}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 2040279554}
   m_LocalEulerAnglesHint: {x: 60, y: 0, z: 0}
 --- !u!114 &330585547
 MonoBehaviour:
@@ -601,11 +601,11 @@ Transform:
   m_GameObject: {fileID: 410087039}
   serializedVersion: 2
   m_LocalRotation: {x: 0.40821788, y: -0.23456968, z: 0.10938163, w: 0.8754261}
-  m_LocalPosition: {x: 0, y: 3, z: 0}
+  m_LocalPosition: {x: 33.18661, y: 3, z: -13.93258}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 2040279554}
   m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
 --- !u!114 &410087042
 MonoBehaviour:
@@ -1035,22 +1035,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Peribind::Peribind.Unity.UI.GameHudView
   boardPresenter: {fileID: 309313925}
-  playerOneScoreText: {fileID: 0}
-  playerTwoScoreText: {fileID: 0}
-  roundText: {fileID: 0}
-  turnText: {fileID: 0}
-  stateText: {fileID: 0}
-  finishRoundButton: {fileID: 0}
-  exitButton: {fileID: 0}
-  exitButtonText: {fileID: 0}
-  gameOverPanel: {fileID: 0}
   starterSceneName: StarterScene
-  gameSceneName: GameScene
-  lobbySceneName: LobbyScene
   sessionController: {fileID: 0}
   networkController: {fileID: 0}
   surrenderingInfo: You surrendered. Leaving match...
-  opponentSurrenderedInfo: Opponent surrendered. You win.
+  surrenderConfirmInfo: Surrender and leave this match?
   surrenderButtonLabel: Surrender
   acknowledgeButtonLabel: OK
   surrenderExitDelaySeconds: 0.35
@@ -1089,8 +1078,6 @@ MonoBehaviour:
   catalog: {fileID: 11400000, guid: 681e572fce7594c4ba56527519a69f8d, type: 2}
   boardPresenter: {fileID: 309313925}
   pieceSelection: {fileID: 309313927}
-  contentRoot: {fileID: 0}
-  buttonPrefab: {fileID: 6794640210051469889, guid: 3254f42742286644497a13c1022be8c5, type: 3}
   disabledColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   enableUiToolkit: 1
   uiDocument: {fileID: 132949037}
@@ -1233,6 +1220,41 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2045352365}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2040279553
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2040279554}
+  m_Layer: 0
+  m_Name: VisualObjects
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2040279554
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2040279553}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -33.18661, y: 14.80592, z: 14.793732}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 330585546}
+  - {fileID: 410087041}
+  - {fileID: 2045352365}
+  - {fileID: 309313924}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2045352361
 GameObject:
   m_ObjectHideFlags: 0
@@ -1299,7 +1321,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: d4eec6c7d9ab2be46ab949e75ee0717a, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -1339,23 +1361,20 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2045352361}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -0}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 33.18661, y: 0, z: -13.93258}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1946464720}
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 2040279554}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 330585546}
-  - {fileID: 410087041}
+  - {fileID: 2040279554}
   - {fileID: 832575519}
-  - {fileID: 2045352365}
-  - {fileID: 309313924}
   - {fileID: 1755673723}
   - {fileID: 1225422990}
   - {fileID: 1286408495}

@@ -39,8 +39,10 @@ namespace Peribind.Unity.UI
         private const string GameHudUxmlResourcePath = "UI/Toolkit/Game/GameHud";
         private const string CommonStyleResourcePath = "UI/Toolkit/Common/PeribindTheme";
         private const string GameHudStyleResourcePath = "UI/Toolkit/Game/GameHud";
-        private const string PlayerOneScoreLabelName = "player-one-score-label";
-        private const string PlayerTwoScoreLabelName = "player-two-score-label";
+        private const string PlayerOneScoreNameLabelName = "player-one-score-name-label";
+        private const string PlayerOneScoreValueLabelName = "player-one-score-value-label";
+        private const string PlayerTwoScoreNameLabelName = "player-two-score-name-label";
+        private const string PlayerTwoScoreValueLabelName = "player-two-score-value-label";
         private const string RoundLabelName = "round-label";
         private const string TurnLabelName = "turn-label";
         private const string LocalPlayerNameLabelName = "local-player-name-label";
@@ -65,8 +67,10 @@ namespace Peribind.Unity.UI
         private UiButton[] _uiMenuButtons;
 
         private UiVisualElement _uiRoot;
-        private UiLabel _uiPlayerOneScoreLabel;
-        private UiLabel _uiPlayerTwoScoreLabel;
+        private UiLabel _uiPlayerOneScoreNameLabel;
+        private UiLabel _uiPlayerOneScoreValueLabel;
+        private UiLabel _uiPlayerTwoScoreNameLabel;
+        private UiLabel _uiPlayerTwoScoreValueLabel;
         private UiLabel _uiRoundLabel;
         private UiLabel _uiTurnLabel;
         private UiLabel _uiLocalPlayerNameLabel;
@@ -99,6 +103,7 @@ namespace Peribind.Unity.UI
             BindNetworkEventsIfNeeded();
             HideInfo();
             UpdateExitButtonState();
+            UpdateFinishRoundButtonState();
             TryRefreshPlayerNames();
         }
 
@@ -161,16 +166,26 @@ namespace Peribind.Unity.UI
                 }
             }
 
-            if (_uiPlayerOneScoreLabel != null)
+            var playerOneName = GetDisplayNameForPlayerSlot(0);
+            var playerOneScore = boardPresenter.GetTotalScore(0);
+            if (_uiPlayerOneScoreNameLabel != null)
             {
-                var playerOneName = GetDisplayNameForPlayerSlot(0);
-                _uiPlayerOneScoreLabel.text = $"{playerOneName}: {boardPresenter.GetTotalScore(0)}";
+                _uiPlayerOneScoreNameLabel.text = $"{playerOneName}:";
+            }
+            if (_uiPlayerOneScoreValueLabel != null)
+            {
+                _uiPlayerOneScoreValueLabel.text = playerOneScore.ToString();
             }
 
-            if (_uiPlayerTwoScoreLabel != null)
+            var playerTwoName = GetDisplayNameForPlayerSlot(1);
+            var playerTwoScore = boardPresenter.GetTotalScore(1);
+            if (_uiPlayerTwoScoreNameLabel != null)
             {
-                var playerTwoName = GetDisplayNameForPlayerSlot(1);
-                _uiPlayerTwoScoreLabel.text = $"{playerTwoName}: {boardPresenter.GetTotalScore(1)}";
+                _uiPlayerTwoScoreNameLabel.text = $"{playerTwoName}:";
+            }
+            if (_uiPlayerTwoScoreValueLabel != null)
+            {
+                _uiPlayerTwoScoreValueLabel.text = playerTwoScore.ToString();
             }
 
             if (_uiRoundLabel != null)
@@ -219,6 +234,7 @@ namespace Peribind.Unity.UI
             }
 
             UpdateExitButtonState();
+            UpdateFinishRoundButtonState();
         }
 
         public void ShowInfo(string message)
@@ -242,6 +258,11 @@ namespace Peribind.Unity.UI
         private void OnFinishRoundClicked()
         {
             if (boardPresenter == null)
+            {
+                return;
+            }
+
+            if (!boardPresenter.IsLocalPlayerTurn() || boardPresenter.IsGameOver)
             {
                 return;
             }
@@ -447,6 +468,19 @@ namespace Peribind.Unity.UI
             _uiExitButton.SetEnabled(shouldShow);
         }
 
+        private void UpdateFinishRoundButtonState()
+        {
+            if (_uiFinishRoundButton == null)
+            {
+                return;
+            }
+
+            var canFinishRound = boardPresenter != null &&
+                                 !boardPresenter.IsGameOver &&
+                                 boardPresenter.IsLocalPlayerTurn();
+            _uiFinishRoundButton.SetEnabled(canFinishRound);
+        }
+
         private void TryBindUiToolkit()
         {
             if (!enableUiToolkit)
@@ -488,8 +522,10 @@ namespace Peribind.Unity.UI
                 TryAddStyle(_uiRoot, GameHudStyleResourcePath);
             }
 
-            _uiPlayerOneScoreLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, PlayerOneScoreLabelName);
-            _uiPlayerTwoScoreLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, PlayerTwoScoreLabelName);
+            _uiPlayerOneScoreNameLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, PlayerOneScoreNameLabelName);
+            _uiPlayerOneScoreValueLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, PlayerOneScoreValueLabelName);
+            _uiPlayerTwoScoreNameLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, PlayerTwoScoreNameLabelName);
+            _uiPlayerTwoScoreValueLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, PlayerTwoScoreValueLabelName);
             _uiRoundLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, RoundLabelName);
             _uiTurnLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, TurnLabelName);
             _uiLocalPlayerNameLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, LocalPlayerNameLabelName);
@@ -504,6 +540,7 @@ namespace Peribind.Unity.UI
 
             RegisterUiToolkitCallbacks();
             UpdateExitButtonState();
+            UpdateFinishRoundButtonState();
             TryRefreshPlayerNames();
             UpdatePlayerNameLabels();
         }

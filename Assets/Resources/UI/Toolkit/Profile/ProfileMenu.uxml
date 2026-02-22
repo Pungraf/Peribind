@@ -25,21 +25,19 @@
                 <ui:Label name="profile-info-label" class="status-label profile-status-label" text="" />
             </ui:VisualElement>
 
-            <ui:VisualElement class="profile-main-row">
-                <ui:VisualElement class="profile-records-panel">
-                    <ui:VisualElement class="profile-records-header">
-                        <ui:Label class="section-title profile-section-title profile-records-title" text="Match Records" />
-                        <ui:VisualElement class="records-tabs-row">
-                            <ui:Button name="records-tab-leaderboard-button" class="secondary-button records-tab-button records-tab-button-active" text="Leaderboard" />
-                            <ui:Button name="records-tab-history-button" class="secondary-button records-tab-button" text="History" />
+                <ui:VisualElement class="profile-main-row">
+                    <ui:VisualElement class="profile-records-panel">
+                        <ui:VisualElement class="profile-records-header">
+                            <ui:VisualElement class="records-tabs-row">
+                                <ui:Button name="records-tab-leaderboard-button" class="secondary-button records-tab-button records-tab-button-active" text="Leaderboard" />
+                                <ui:Button name="records-tab-history-button" class="secondary-button records-tab-button" text="History" />
+                            </ui:VisualElement>
                         </ui:VisualElement>
-                    </ui:VisualElement>
                     <ui:ScrollView name="leaderboard-scroll" class="profile-scroll records-list" />
                     <ui:ScrollView name="history-scroll" class="profile-scroll records-list records-list-hidden" />
                 </ui:VisualElement>
 
                 <ui:VisualElement class="profile-stats-panel profile-stats-panel-side">
-                    <ui:Label class="section-title profile-section-title" text="Stats" />
                     <ui:VisualElement class="profile-stats-grid">
                         <ui:VisualElement class="stat-card">
                             <ui:Label class="stat-title" text="Games" />

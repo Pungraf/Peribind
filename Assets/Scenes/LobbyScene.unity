@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
+  m_SkyboxMaterial: {fileID: 2100000, guid: 65e3f614cce5817468937744e0fffc81, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -554,23 +554,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Peribind::Peribind.Unity.UI.LobbyUgsMenu
   lobbyService: {fileID: 0}
-  lobbyNameInput: {fileID: 0}
-  mapInput: {fileID: 0}
-  createButton: {fileID: 0}
-  returnButton: {fileID: 0}
   starterSceneName: StarterScene
-  joinCodeInput: {fileID: 0}
-  joinCodeButton: {fileID: 0}
-  refreshButton: {fileID: 0}
-  listContent: {fileID: 0}
-  lobbyRowButtonPrefab: {fileID: 994576008441626242, guid: e2a17c1a13de66d4b9478e82eb3b641c, type: 3}
-  statusText: {fileID: 0}
-  exitButton: {fileID: 0}
-  readyButton: {fileID: 0}
-  readyButtonText: {fileID: 0}
   directConnection: {fileID: 2098417158}
   matchRegistry: {fileID: 0}
-  reconnectButton: {fileID: 0}
   matchIdPrefsKey: last_match_id
   enableUiToolkit: 1
   uiDocument: {fileID: 103207968}

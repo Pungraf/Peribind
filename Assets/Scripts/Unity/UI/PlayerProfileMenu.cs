@@ -166,15 +166,21 @@ namespace Peribind.Unity.UI
             }
 
             SetBusy(true);
-            SetProfileInfo("Updating display name...");
             try
             {
+                SetProfileInfo("Checking display name...");
+                var isAvailable = await matchRegistryClient.IsDisplayNameAvailableAsync(nextDisplayName, playerId);
+                if (!isAvailable)
+                {
+                    SetProfileInfo(ResolveDisplayNameErrorMessage(matchRegistryClient.LastErrorMessage));
+                    return;
+                }
+
+                SetProfileInfo("Updating display name...");
                 var updated = await matchRegistryClient.UpsertPlayerAsync(playerId, username, nextDisplayName);
                 if (updated == null)
                 {
-                    SetProfileInfo(string.IsNullOrWhiteSpace(matchRegistryClient.LastErrorMessage)
-                        ? "Failed to update display name."
-                        : matchRegistryClient.LastErrorMessage);
+                    SetProfileInfo(ResolveDisplayNameErrorMessage(matchRegistryClient.LastErrorMessage));
                     return;
                 }
 
@@ -449,17 +455,30 @@ namespace Peribind.Unity.UI
             var right = new UiVisualElement();
             right.AddToClassList("leaderboard-row-right");
 
-            var rp = new UiLabel { text = $"RP {rankPoints}" };
-            rp.AddToClassList("leaderboard-metric");
-            right.Add(rp);
-
-            var record = new UiLabel { text = $"W {wins}  L {losses}  D {draws}" };
-            record.AddToClassList("leaderboard-metric");
-            right.Add(record);
+            right.Add(CreateLeaderboardMetricToken("RP", rankPoints.ToString()));
+            right.Add(CreateLeaderboardMetricToken("W", wins.ToString()));
+            right.Add(CreateLeaderboardMetricToken("L", losses.ToString()));
+            right.Add(CreateLeaderboardMetricToken("D", draws.ToString()));
 
             row.Add(left);
             row.Add(right);
             scrollView.Add(row);
+        }
+
+        private static UiVisualElement CreateLeaderboardMetricToken(string prefix, string value)
+        {
+            var token = new UiVisualElement();
+            token.AddToClassList("leaderboard-metric-token");
+
+            var prefixLabel = new UiLabel { text = prefix };
+            prefixLabel.AddToClassList("leaderboard-metric-prefix");
+            token.Add(prefixLabel);
+
+            var valueLabel = new UiLabel { text = value };
+            valueLabel.AddToClassList("leaderboard-metric-number");
+            token.Add(valueLabel);
+
+            return token;
         }
 
         private static void AddHistoryRow(
@@ -809,6 +828,31 @@ namespace Peribind.Unity.UI
             {
                 _uiProfileInfoLabel.text = message ?? string.Empty;
             }
+        }
+
+        private static string ResolveDisplayNameErrorMessage(string rawError)
+        {
+            if (string.Equals(rawError, "display_name_taken", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Display name is already taken. Pick another one.";
+            }
+
+            if (string.Equals(rawError, "missing_display_name", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Display name cannot be empty.";
+            }
+
+            if (string.Equals(rawError, "display_name_check_failed", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Could not verify display name uniqueness.";
+            }
+
+            if (string.Equals(rawError, "display_name_check_unavailable", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Display name check is unavailable. Try again in a moment.";
+            }
+
+            return string.IsNullOrWhiteSpace(rawError) ? "Failed to update display name." : rawError;
         }
 
         private static bool TryGetPlayerId(out string playerId)
