@@ -21,6 +21,10 @@ MonoBehaviour:
   m_OverrideGlobalSceneList: 1
   m_Scenes:
   - m_enabled: 1
+    m_path: Assets/Scenes/SplashScreenScene.unity
+  - m_enabled: 1
+    m_path: Assets/Scenes/LoginScene.unity
+  - m_enabled: 1
     m_path: Assets/Scenes/StarterScene.unity
   - m_enabled: 1
     m_path: Assets/Scenes/PlayerProfileScene.unity

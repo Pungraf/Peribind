@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\johny\\unity\\Peribind\\Launcher\\PeribindLauncher.csproj": {}
+    "C:\\Users\\johny\\Unity\\Peribind\\Launcher\\PeribindLauncher.csproj": {}
   },
   "projects": {
-    "C:\\Users\\johny\\unity\\Peribind\\Launcher\\PeribindLauncher.csproj": {
+    "C:\\Users\\johny\\Unity\\Peribind\\Launcher\\PeribindLauncher.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\johny\\unity\\Peribind\\Launcher\\PeribindLauncher.csproj",
+        "projectUniqueName": "C:\\Users\\johny\\Unity\\Peribind\\Launcher\\PeribindLauncher.csproj",
         "projectName": "PeribindLauncher",
-        "projectPath": "C:\\Users\\johny\\unity\\Peribind\\Launcher\\PeribindLauncher.csproj",
+        "projectPath": "C:\\Users\\johny\\Unity\\Peribind\\Launcher\\PeribindLauncher.csproj",
         "packagesPath": "C:\\Users\\johny\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\johny\\unity\\Peribind\\Launcher\\obj\\",
+        "outputPath": "C:\\Users\\johny\\Unity\\Peribind\\Launcher\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

@@ -7,7 +7,7 @@
 ; 2) Update MyAppVersion for each release
 
 #define MyAppName "Peribind"
-#define MyAppVersion "0.2.1"
+#define MyAppVersion "0.2.2"
 #define MyAppPublisher "Peribind Team"
 #define MyAppURL "https://download.peribind.com"
 #define MyAppExeName "PeribindLauncher.exe"
@@ -32,6 +32,7 @@ PrivilegesRequired=admin
 OutputDir=..\Build\Installer
 OutputBaseFilename=PeribindSetup_{#MyAppVersion}
 SetupLogging=yes
+SetupIconFile=..\Launcher\PeribindLogo.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

@@ -12,6 +12,7 @@ public static class BuildClientServer
 
     private static readonly string[] ClientScenes =
     {
+        "Assets/Scenes/SplashScreenScene.unity",
         "Assets/Scenes/LoginScene.unity",
         "Assets/Scenes/StarterScene.unity",
         "Assets/Scenes/PlayerProfileScene.unity",
@@ -36,14 +37,23 @@ public static class BuildClientServer
             target = BuildTarget.StandaloneWindows64;
         }
 
+        RecreateOutputDirectory(ClientBuildDir);
+
         var output = EnsureOutputPath(ClientBuildDir, target, "PeribindClient");
-        var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+        var options = new BuildPlayerOptions
         {
             scenes = ClientScenes,
             locationPathName = output,
             target = target,
             options = BuildOptions.None
-        });
+        };
+
+#if UNITY_2021_2_OR_NEWER
+        // Explicitly force Player subtarget so client builds do not inherit dedicated-server stripping.
+        options.subtarget = (int)StandaloneBuildSubtarget.Player;
+#endif
+
+        var report = BuildPipeline.BuildPlayer(options);
 
         LogResult(report, "Client");
         WriteRunWithLogScript(output, "Client");
@@ -128,6 +138,16 @@ public static class BuildClientServer
         }
 
         return Path.Combine(baseDir, $"{baseName}.exe");
+    }
+
+    private static void RecreateOutputDirectory(string path)
+    {
+        if (Directory.Exists(path))
+        {
+            Directory.Delete(path, recursive: true);
+        }
+
+        Directory.CreateDirectory(path);
     }
 
     private static void LogResult(BuildReport report, string label)
