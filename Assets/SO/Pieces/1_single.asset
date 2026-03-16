@@ -16,5 +16,11 @@ MonoBehaviour:
   displayName: Tavern
   color: {r: 1, g: 1, b: 1, a: 1}
   icon: {fileID: 21300000, guid: b537f16c361938c4a8af90b034aeaa48, type: 3}
+  neutralBuildingPrefab: {fileID: 0}
+  playerOneBuildingPrefab: {fileID: 5171978089100448506, guid: 8852ff38f016d9845bf6b783a96ca098, type: 3}
+  playerTwoBuildingPrefab: {fileID: 5171978089100448506, guid: 329b58e87aa893641b4af7a43fc36470, type: 3}
+  buildingLocalOffset: {x: 0, y: 0, z: 0}
+  buildingLocalRotation: {x: 0, y: 0, z: 0}
+  buildingLocalScale: {x: 1, y: 1, z: 1}
   cells:
   - {x: 0, y: 0}

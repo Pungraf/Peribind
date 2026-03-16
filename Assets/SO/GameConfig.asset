@@ -15,6 +15,6 @@ MonoBehaviour:
   playerOnePieceSet: {fileID: 11400000, guid: f5b0f55ad029c0b439e2fa06e2ffa7b8, type: 2}
   playerTwoPieceSet: {fileID: 11400000, guid: 7d7025539db844343a0fa5c2d7895c3f, type: 2}
   cathedralPiece: {fileID: 11400000, guid: 62d013926a9f4a64fb5cbade883c7a53, type: 2}
-  playerOneColor: {r: 0.21493416, g: 0.5164648, b: 0.6603774, a: 1}
-  playerTwoColor: {r: 0.7169812, g: 0.49783033, b: 0.1724813, a: 1}
+  playerOneColor: {r: 0.7176471, g: 0.49803922, b: 0.17254902, a: 1}
+  playerTwoColor: {r: 0.21568628, g: 0.5176471, b: 0.65882355, a: 1}
   cathedralColor: {r: 0.3773585, g: 0.0975462, b: 0.080099694, a: 1}

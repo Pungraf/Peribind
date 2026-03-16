@@ -10,6 +10,7 @@
                 <ui:Label name="login-info-label" text="" class="info-label"/>
                 <ui:VisualElement class="button-column">
                     <ui:Button name="login-submit-button" text="Sign In" class="primary-button"/>
+                    <ui:Button name="login-local-test-button" text="Local Test Mode" class="secondary-button"/>
                     <ui:Button name="open-register-button" text="Create Account" class="secondary-button"/>
                     <ui:Button name="quit-button" text="Quit" class="danger-button"/>
                 </ui:VisualElement>

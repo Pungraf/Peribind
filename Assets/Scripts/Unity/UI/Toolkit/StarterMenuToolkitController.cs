@@ -12,6 +12,8 @@ namespace Peribind.Unity.UI
 
         private const string TitleLabelName = "title-label";
         private const string PlayButtonName = "play-button";
+        private const string LocalHostButtonName = "local-host-button";
+        private const string LocalJoinButtonName = "local-join-button";
         private const string ProfileButtonName = "profile-button";
         private const string LogoutButtonName = "logout-button";
 
@@ -24,6 +26,8 @@ namespace Peribind.Unity.UI
         [SerializeField] private bool autoAssignStylesFromResources = true;
 
         private Button _playButton;
+        private Button _localHostButton;
+        private Button _localJoinButton;
         private Button _profileButton;
         private Button _logoutButton;
         private bool _callbacksRegistered;
@@ -88,6 +92,8 @@ namespace Peribind.Unity.UI
             }
 
             _playButton = root.Q<Button>(PlayButtonName);
+            _localHostButton = root.Q<Button>(LocalHostButtonName);
+            _localJoinButton = root.Q<Button>(LocalJoinButtonName);
             _profileButton = root.Q<Button>(ProfileButtonName);
             _logoutButton = root.Q<Button>(LogoutButtonName);
 
@@ -133,6 +139,24 @@ namespace Peribind.Unity.UI
                 Debug.LogWarning("[StarterMenuUITK] Missing logout button element.");
             }
 
+            if (_localHostButton != null)
+            {
+                _localHostButton.clicked += OnLocalHostClicked;
+            }
+            else
+            {
+                Debug.LogWarning("[StarterMenuUITK] Missing local host button element.");
+            }
+
+            if (_localJoinButton != null)
+            {
+                _localJoinButton.clicked += OnLocalJoinClicked;
+            }
+            else
+            {
+                Debug.LogWarning("[StarterMenuUITK] Missing local join button element.");
+            }
+
             _callbacksRegistered = true;
         }
 
@@ -151,6 +175,16 @@ namespace Peribind.Unity.UI
             if (_profileButton != null)
             {
                 _profileButton.clicked -= OnProfileClicked;
+            }
+
+            if (_localHostButton != null)
+            {
+                _localHostButton.clicked -= OnLocalHostClicked;
+            }
+
+            if (_localJoinButton != null)
+            {
+                _localJoinButton.clicked -= OnLocalJoinClicked;
             }
 
             if (_logoutButton != null)
@@ -191,6 +225,38 @@ namespace Peribind.Unity.UI
             }
 
             starterMenu.LoadProfileScene();
+        }
+
+        private void OnLocalHostClicked()
+        {
+            if (starterMenu == null)
+            {
+                starterMenu = FindObjectOfType<StarterMenu>(true);
+            }
+
+            if (starterMenu == null)
+            {
+                Debug.LogError("[StarterMenuUITK] StarterMenu is missing. Cannot start local host test.");
+                return;
+            }
+
+            starterMenu.StartLocalHostTest();
+        }
+
+        private void OnLocalJoinClicked()
+        {
+            if (starterMenu == null)
+            {
+                starterMenu = FindObjectOfType<StarterMenu>(true);
+            }
+
+            if (starterMenu == null)
+            {
+                Debug.LogError("[StarterMenuUITK] StarterMenu is missing. Cannot join local host test.");
+                return;
+            }
+
+            starterMenu.JoinLocalHostTest();
         }
 
         private void OnLogoutClicked()

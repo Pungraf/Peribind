@@ -15,6 +15,11 @@ namespace Peribind.Unity.Networking
         [SerializeField] private string gameSceneName = "GameScene";
         [SerializeField] private string serverPortEnvironmentKey = "PERIBIND_SERVER_PORT";
         [SerializeField] private string serverPortArgumentName = "-port";
+        [SerializeField] private bool allowLocalTestIdentityWithoutAuthentication = true;
+        [SerializeField] private string localTestIdentityEnvironmentKey = "PERIBIND_LOCAL_TEST_ID";
+        [SerializeField] private string localTestIdentityArgumentName = "-localTestId";
+        [SerializeField] private string defaultHostLocalTestIdentity = "local-host";
+        [SerializeField] private string defaultClientLocalTestIdentity = "local-client";
         private bool _callbacksRegistered;
 
         public bool StartServer()
@@ -99,9 +104,9 @@ namespace Peribind.Unity.Networking
                 return false;
             }
 
-            if (!TryGetAuthenticatedPlayerId(out var playerId))
+            if (!TryGetPlayerIdentity(out var playerId))
             {
-                Debug.LogWarning("[DirectConnection] StartClient blocked: user is not authenticated.");
+                Debug.LogWarning("[DirectConnection] StartClient blocked: no authenticated or local test identity available.");
                 return false;
             }
 
@@ -110,6 +115,74 @@ namespace Peribind.Unity.Networking
             transport.SetConnectionData(address, (ushort)portOverride);
             var started = manager.StartClient();
             Debug.Log($"[DirectConnection] NetworkManager.StartClient returned {started}.");
+            return started;
+        }
+
+        public bool StartLocalHost()
+        {
+            return StartHostWithIdentity(defaultHostLocalTestIdentity);
+        }
+
+        public bool StartLocalClient()
+        {
+            return StartClientWithIdentity("127.0.0.1", port, defaultClientLocalTestIdentity);
+        }
+
+        public bool StartClientWithIdentity(string address, int portOverride, string identity)
+        {
+            return StartClientInternal(address, portOverride, identity);
+        }
+
+        public bool StartHostWithIdentity(string identity)
+        {
+            var manager = EnsureNetworkManager();
+            if (manager == null)
+            {
+                Debug.LogWarning("[DirectConnection] NetworkManager missing.");
+                return false;
+            }
+
+            EnsureNetworkCallbacks(manager);
+
+            var transport = manager.GetComponent<UnityTransport>();
+            if (transport == null)
+            {
+                Debug.LogWarning("[DirectConnection] UnityTransport missing.");
+                return false;
+            }
+
+            if (manager.IsListening || manager.IsClient || manager.IsServer || manager.IsHost)
+            {
+                Debug.LogWarning(
+                    $"[DirectConnection] Host start skipped: NetworkManager already active " +
+                    $"(IsListening={manager.IsListening}, IsClient={manager.IsClient}, IsServer={manager.IsServer}, IsHost={manager.IsHost}).");
+                return false;
+            }
+
+            var resolvedIdentity = ResolvePlayerIdentity(identity);
+            if (string.IsNullOrWhiteSpace(resolvedIdentity))
+            {
+                Debug.LogWarning("[DirectConnection] StartHost blocked: no authenticated or local test identity available.");
+                return false;
+            }
+
+            var listenPort = ResolveServerPort();
+            transport.SetConnectionData("0.0.0.0", listenPort, "0.0.0.0");
+            manager.NetworkConfig.ConnectionApproval = true;
+            manager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(resolvedIdentity);
+            NetworkGameController.ConfigureConnectionApproval(manager);
+            if (manager.GetComponent<MatchLifecycleServer>() == null)
+            {
+                manager.gameObject.AddComponent<MatchLifecycleServer>();
+            }
+
+            var started = manager.StartHost();
+            Debug.Log($"[DirectConnection] NetworkManager.StartHost returned {started}. Identity='{resolvedIdentity}'.");
+            if (started && manager.SceneManager != null)
+            {
+                manager.SceneManager.LoadScene(gameSceneName, LoadSceneMode.Single);
+            }
+
             return started;
         }
 
@@ -200,6 +273,110 @@ namespace Peribind.Unity.Networking
             }
 
             return port;
+        }
+
+        private bool StartClientInternal(string address, int portOverride, string identityOverride)
+        {
+            if (string.IsNullOrWhiteSpace(address))
+            {
+                Debug.LogWarning("[DirectConnection] StartClient called with empty address.");
+                return false;
+            }
+
+            var manager = EnsureNetworkManager();
+            if (manager == null)
+            {
+                Debug.LogWarning("[DirectConnection] NetworkManager missing.");
+                return false;
+            }
+
+            EnsureNetworkCallbacks(manager);
+
+            var transport = manager.GetComponent<UnityTransport>();
+            if (transport == null)
+            {
+                Debug.LogWarning("[DirectConnection] UnityTransport missing.");
+                return false;
+            }
+
+            if (manager.IsListening || manager.IsClient || manager.IsServer || manager.IsHost)
+            {
+                Debug.LogWarning(
+                    $"[DirectConnection] Client start skipped: NetworkManager already active " +
+                    $"(IsListening={manager.IsListening}, IsClient={manager.IsClient}, IsServer={manager.IsServer}, IsHost={manager.IsHost}).");
+                return false;
+            }
+
+            var playerId = ResolvePlayerIdentity(identityOverride);
+            if (string.IsNullOrWhiteSpace(playerId))
+            {
+                Debug.LogWarning("[DirectConnection] StartClient blocked: no authenticated or local test identity available.");
+                return false;
+            }
+
+            manager.NetworkConfig.ConnectionApproval = true;
+            manager.NetworkConfig.ConnectionData = Encoding.UTF8.GetBytes(playerId);
+            transport.SetConnectionData(address, (ushort)portOverride);
+            var started = manager.StartClient();
+            Debug.Log($"[DirectConnection] NetworkManager.StartClient returned {started}. Identity='{playerId}'.");
+            return started;
+        }
+
+        private bool TryGetPlayerIdentity(out string playerId)
+        {
+            playerId = ResolvePlayerIdentity(string.Empty);
+            return !string.IsNullOrWhiteSpace(playerId);
+        }
+
+        private string ResolvePlayerIdentity(string explicitIdentity)
+        {
+            if (!string.IsNullOrWhiteSpace(explicitIdentity))
+            {
+                return explicitIdentity.Trim();
+            }
+
+            if (TryGetAuthenticatedPlayerId(out var authenticatedIdentity))
+            {
+                return authenticatedIdentity;
+            }
+
+            if (!allowLocalTestIdentityWithoutAuthentication)
+            {
+                return string.Empty;
+            }
+
+            var overrideIdentity = ResolveLocalTestIdentityOverride();
+            if (!string.IsNullOrWhiteSpace(overrideIdentity))
+            {
+                return overrideIdentity;
+            }
+
+            return string.Empty;
+        }
+
+        private string ResolveLocalTestIdentityOverride()
+        {
+            var fromEnvironment = Environment.GetEnvironmentVariable(localTestIdentityEnvironmentKey);
+            if (!string.IsNullOrWhiteSpace(fromEnvironment))
+            {
+                return fromEnvironment.Trim();
+            }
+
+            var args = Environment.GetCommandLineArgs();
+            for (var i = 0; i < args.Length - 1; i++)
+            {
+                if (!string.Equals(args[i], localTestIdentityArgumentName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(args[i + 1]))
+                {
+                    return args[i + 1].Trim();
+                }
+            }
+
+            return string.Empty;
         }
 
         private static bool TryGetAuthenticatedPlayerId(out string playerId)

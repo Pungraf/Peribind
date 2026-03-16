@@ -10,6 +10,7 @@ using Unity.Netcode;
 using Unity.Services.Authentication;
 using Unity.Services.Core;
 using UnityEngine;
+using Process = System.Diagnostics.Process;
 
 namespace Peribind.Unity.Networking
 {
@@ -1050,25 +1051,61 @@ namespace Peribind.Unity.Networking
                 return false;
             }
 
-            if (UnityServices.State != ServicesInitializationState.Initialized)
+            if (UnityServices.State == ServicesInitializationState.Initialized)
             {
-                return false;
+                try
+                {
+                    if (AuthenticationService.Instance != null && AuthenticationService.Instance.IsSignedIn)
+                    {
+                        authId = AuthenticationService.Instance.PlayerId ?? string.Empty;
+                        if (!string.IsNullOrWhiteSpace(authId))
+                        {
+                            return true;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Fall back to local test identity below.
+                }
             }
 
-            try
+            return TryGetLocalTestAuthId(out authId);
+        }
+
+        private static bool TryGetLocalTestAuthId(out string authId)
+        {
+            authId = string.Empty;
+
+            var fromEnvironment = Environment.GetEnvironmentVariable("PERIBIND_LOCAL_TEST_ID");
+            if (!string.IsNullOrWhiteSpace(fromEnvironment))
             {
-                if (AuthenticationService.Instance == null || !AuthenticationService.Instance.IsSignedIn)
+                authId = fromEnvironment.Trim();
+                return true;
+            }
+
+            var args = Environment.GetCommandLineArgs();
+            for (var i = 0; i < args.Length - 1; i++)
+            {
+                if (!string.Equals(args[i], "-localTestId", StringComparison.OrdinalIgnoreCase))
                 {
-                    return false;
+                    continue;
                 }
 
-                authId = AuthenticationService.Instance.PlayerId ?? string.Empty;
-                return !string.IsNullOrWhiteSpace(authId);
+                if (!string.IsNullOrWhiteSpace(args[i + 1]))
+                {
+                    authId = args[i + 1].Trim();
+                    return true;
+                }
             }
-            catch
+
+            if (Debug.isDebugBuild)
             {
-                return false;
+                authId = $"local-dev-{Process.GetCurrentProcess().Id}";
+                return true;
             }
+
+            return false;
         }
 
         private static bool IsDedicatedServerRuntime()
@@ -1257,6 +1294,7 @@ namespace Peribind.Unity.Networking
                         InstanceId = piece.InstanceId,
                         PlayerId = piece.PlayerId,
                         PieceIdHash = ComputeStableHash(piece.PieceId),
+                        Rotation = (int)piece.Rotation,
                         IsCathedral = piece.IsCathedral
                     });
 
@@ -1447,6 +1485,7 @@ namespace Peribind.Unity.Networking
                     InstanceId = piece.InstanceId,
                     PlayerId = piece.PlayerId,
                     PieceId = ResolvePieceId(piece.PieceIdHash),
+                    Rotation = (Rotation)piece.Rotation,
                     IsCathedral = piece.IsCathedral,
                     Cells = new List<Cell>()
                 };
@@ -1656,6 +1695,7 @@ namespace Peribind.Unity.Networking
             public int InstanceId;
             public int PlayerId;
             public int PieceIdHash;
+            public int Rotation;
             public bool IsCathedral;
 
             public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
@@ -1663,6 +1703,7 @@ namespace Peribind.Unity.Networking
                 serializer.SerializeValue(ref InstanceId);
                 serializer.SerializeValue(ref PlayerId);
                 serializer.SerializeValue(ref PieceIdHash);
+                serializer.SerializeValue(ref Rotation);
                 serializer.SerializeValue(ref IsCathedral);
             }
 
@@ -1671,6 +1712,7 @@ namespace Peribind.Unity.Networking
                 return InstanceId == other.InstanceId &&
                        PlayerId == other.PlayerId &&
                        PieceIdHash == other.PieceIdHash &&
+                       Rotation == other.Rotation &&
                        IsCathedral == other.IsCathedral;
             }
         }

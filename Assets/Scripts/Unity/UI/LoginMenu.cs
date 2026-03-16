@@ -45,6 +45,7 @@ namespace Peribind.Unity.UI
         private const string RegisterModeInfoName = "register-mode-info-label";
         private const string DefaultLoginInfoMessage = "Sign in with your Unity Player Account in browser.";
         private const string LoginButtonName = "login-submit-button";
+        private const string LocalTestButtonName = "login-local-test-button";
         private const string RegisterPanelButtonName = "open-register-button";
         private const string QuitButtonName = "quit-button";
         private const string RegisterSubmitButtonName = "register-submit-button";
@@ -61,6 +62,7 @@ namespace Peribind.Unity.UI
         private UiLabel _uiRegisterInfoLabel;
         private UiLabel _uiRegisterModeInfoLabel;
         private UiButton _uiLoginButton;
+        private UiButton _uiLocalTestButton;
         private UiButton _uiRegisterPanelButton;
         private UiButton _uiQuitButton;
         private UiButton _uiRegisterSubmitButton;
@@ -241,6 +243,15 @@ namespace Peribind.Unity.UI
             UnityEngine.Application.Quit();
         }
 
+        public void ContinueWithoutLoginForLocalTesting()
+        {
+            ClearSelection();
+            if (!string.IsNullOrWhiteSpace(nextSceneName))
+            {
+                SceneManager.LoadScene(nextSceneName);
+            }
+        }
+
         private void CancelPendingPlayerAccountFlow(string infoMessage)
         {
             if (ugsBootstrap == null)
@@ -267,6 +278,7 @@ namespace Peribind.Unity.UI
         private void SetButtonsInteractable(bool interactable)
         {
             _uiLoginButton?.SetEnabled(interactable);
+            _uiLocalTestButton?.SetEnabled(interactable);
             _uiRegisterPanelButton?.SetEnabled(interactable);
             _uiQuitButton?.SetEnabled(interactable);
             _uiRegisterSubmitButton?.SetEnabled(interactable);
@@ -365,6 +377,7 @@ namespace Peribind.Unity.UI
             _uiRegisterInfoLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, RegisterInfoName);
             _uiRegisterModeInfoLabel = UnityEngine.UIElements.UQueryExtensions.Q<UiLabel>(_uiRoot, RegisterModeInfoName);
             _uiLoginButton = UnityEngine.UIElements.UQueryExtensions.Q<UiButton>(_uiRoot, LoginButtonName);
+            _uiLocalTestButton = UnityEngine.UIElements.UQueryExtensions.Q<UiButton>(_uiRoot, LocalTestButtonName);
             _uiRegisterPanelButton = UnityEngine.UIElements.UQueryExtensions.Q<UiButton>(_uiRoot, RegisterPanelButtonName);
             _uiQuitButton = UnityEngine.UIElements.UQueryExtensions.Q<UiButton>(_uiRoot, QuitButtonName);
             _uiRegisterSubmitButton = UnityEngine.UIElements.UQueryExtensions.Q<UiButton>(_uiRoot, RegisterSubmitButtonName);
@@ -385,6 +398,11 @@ namespace Peribind.Unity.UI
             if (_uiLoginButton != null)
             {
                 _uiLoginButton.clicked += OnLoginClicked;
+            }
+
+            if (_uiLocalTestButton != null)
+            {
+                _uiLocalTestButton.clicked += ContinueWithoutLoginForLocalTesting;
             }
 
             if (_uiRegisterPanelButton != null)
@@ -420,6 +438,11 @@ namespace Peribind.Unity.UI
             if (_uiLoginButton != null)
             {
                 _uiLoginButton.clicked -= OnLoginClicked;
+            }
+
+            if (_uiLocalTestButton != null)
+            {
+                _uiLocalTestButton.clicked -= ContinueWithoutLoginForLocalTesting;
             }
 
             if (_uiRegisterPanelButton != null)
@@ -563,4 +586,3 @@ namespace Peribind.Unity.UI
         }
     }
 }
-

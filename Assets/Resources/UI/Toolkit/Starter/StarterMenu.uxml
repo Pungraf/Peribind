@@ -7,9 +7,11 @@
             <ui:Label name="title-label" class="title-text" text="Peribind" />
             <ui:VisualElement name="starter-panel" class="auth-panel">
                 <ui:Label name="subtitle-label" class="section-title" text="Choose your next action" />
-                <ui:Label name="starter-info-label" class="info-label" text="" />
+                <ui:Label name="starter-info-label" class="info-label" text="For local testing: open two game instances, click Local Host in the first and Join Local Host in the second." />
                 <ui:VisualElement class="button-column">
                     <ui:Button name="play-button" class="primary-button" text="Play" />
+                    <ui:Button name="local-host-button" class="secondary-button" text="Local Host" />
+                    <ui:Button name="local-join-button" class="secondary-button" text="Join Local Host" />
                     <ui:Button name="profile-button" class="secondary-button" text="Profile" />
                     <ui:Button name="logout-button" class="danger-button" text="Logout" />
                 </ui:VisualElement>

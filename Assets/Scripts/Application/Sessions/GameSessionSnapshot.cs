@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Peribind.Domain.Board;
+using Peribind.Domain.Pieces;
 
 namespace Peribind.Application.Sessions
 {
@@ -25,6 +26,7 @@ namespace Peribind.Application.Sessions
         public int InstanceId { get; set; }
         public int PlayerId { get; set; }
         public string PieceId { get; set; }
+        public Rotation Rotation { get; set; }
         public bool IsCathedral { get; set; }
         public List<Cell> Cells { get; set; }
     }

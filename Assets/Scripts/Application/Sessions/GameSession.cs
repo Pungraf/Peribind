@@ -106,7 +106,7 @@ namespace Peribind.Application.Sessions
             var occupant = new CellOccupant(placedPlayerId, instanceId, pieceId);
             command = new PlacePieceCommand(placementResult.AbsoluteCells, occupant);
             command.Apply(Board);
-            _placedPieces[instanceId] = new PlacedPiece(instanceId, placedPlayerId, pieceId, placementResult.AbsoluteCells, isCathedral);
+            _placedPieces[instanceId] = new PlacedPiece(instanceId, placedPlayerId, pieceId, placementResult.AbsoluteCells, rotation, isCathedral);
 
             if (isCathedral)
             {
@@ -329,6 +329,7 @@ namespace Peribind.Application.Sessions
                     InstanceId = piece.InstanceId,
                     PlayerId = piece.PlayerId,
                     PieceId = piece.PieceId,
+                    Rotation = piece.Rotation,
                     IsCathedral = piece.IsCathedral,
                     Cells = new List<Cell>(piece.Cells)
                 });
@@ -439,7 +440,7 @@ namespace Peribind.Application.Sessions
                     Board.SetOccupant(cell, occupant);
                 }
 
-                _placedPieces[piece.InstanceId] = new PlacedPiece(piece.InstanceId, piece.PlayerId, piece.PieceId, piece.Cells, piece.IsCathedral);
+                _placedPieces[piece.InstanceId] = new PlacedPiece(piece.InstanceId, piece.PlayerId, piece.PieceId, piece.Cells, piece.Rotation, piece.IsCathedral);
                 if (piece.InstanceId > _nextPieceInstanceId)
                 {
                     _nextPieceInstanceId = piece.InstanceId;

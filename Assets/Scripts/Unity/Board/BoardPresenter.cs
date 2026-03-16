@@ -31,6 +31,7 @@ namespace Peribind.Unity.Board
         private GamePhase _lastPhase;
         private int _lastRoundRevision;
         private bool _subscribedToSession;
+        private Dictionary<string, PieceDefinitionSO> _pieceLookup = new Dictionary<string, PieceDefinitionSO>();
 
         public int PlacementRevision => _placementRevision;
         public int CurrentPlayerId => _session != null ? _session.CurrentPlayerId : 0;
@@ -59,6 +60,8 @@ namespace Peribind.Unity.Board
             {
                 return;
             }
+
+            _pieceLookup = BuildPieceLookup(gameConfig);
 
             EnsureNetworkController();
 
@@ -204,7 +207,8 @@ namespace Peribind.Unity.Board
             if (placementPreview != null)
             {
                 var previewColor = ResolvePreviewColor();
-                placementPreview.Show(gridMapper, _currentPieceDefinition, cell, _rotation, result.IsValid, previewColor);
+                var previewPlayerId = _session.Phase == GamePhase.CathedralPlacement ? GameSession.NeutralPlayerId : _session.CurrentPlayerId;
+                placementPreview.Show(gridMapper, pieceAsset, _currentPieceDefinition, cell, _rotation, previewPlayerId, result.IsValid, previewColor);
             }
 
             if (inputReader.ConsumePlacePressed() && result.IsValid)
@@ -412,6 +416,25 @@ namespace Peribind.Unity.Board
             return sizes;
         }
 
+        private static Dictionary<string, PieceDefinitionSO> BuildPieceLookup(GameConfigSO config)
+        {
+            var lookup = new Dictionary<string, PieceDefinitionSO>();
+            if (config == null)
+            {
+                return lookup;
+            }
+
+            AddPieces(lookup, config.PlayerOnePieceSet);
+            AddPieces(lookup, config.PlayerTwoPieceSet);
+
+            if (config.CathedralPiece != null && !lookup.ContainsKey(config.CathedralPiece.Id))
+            {
+                lookup[config.CathedralPiece.Id] = config.CathedralPiece;
+            }
+
+            return lookup;
+        }
+
         private static void AddPieceSizes(Dictionary<string, int> sizes, PieceSetSO set)
         {
             foreach (var entry in set.Entries)
@@ -424,6 +447,27 @@ namespace Peribind.Unity.Board
                 if (!sizes.ContainsKey(entry.piece.Id))
                 {
                     sizes[entry.piece.Id] = entry.piece.Cells.Count;
+                }
+            }
+        }
+
+        private static void AddPieces(Dictionary<string, PieceDefinitionSO> lookup, PieceSetSO set)
+        {
+            if (set == null)
+            {
+                return;
+            }
+
+            foreach (var entry in set.Entries)
+            {
+                if (entry.piece == null)
+                {
+                    continue;
+                }
+
+                if (!lookup.ContainsKey(entry.piece.Id))
+                {
+                    lookup[entry.piece.Id] = entry.piece;
                 }
             }
         }
@@ -486,8 +530,24 @@ namespace Peribind.Unity.Board
             foreach (var placedPiece in _session.PlacedPieces)
             {
                 var color = ResolvePlacementColor(placedPiece.PlayerId, placedPiece.IsCathedral);
-                placementView.AddPlacement(gridMapper, placedPiece.Cells, color);
+                var pieceAsset = ResolvePieceAsset(placedPiece.PieceId);
+                placementView.AddPlacement(gridMapper, pieceAsset, placedPiece.Cells, placedPiece.Rotation, placedPiece.PlayerId, color);
             }
+        }
+
+        private PieceDefinitionSO ResolvePieceAsset(string pieceId)
+        {
+            if (string.IsNullOrWhiteSpace(pieceId) || _pieceLookup == null)
+            {
+                return null;
+            }
+
+            if (_pieceLookup.TryGetValue(pieceId, out var pieceAsset))
+            {
+                return pieceAsset;
+            }
+
+            return null;
         }
 
         public bool HasPieceForCurrentPlayer(string pieceId)
