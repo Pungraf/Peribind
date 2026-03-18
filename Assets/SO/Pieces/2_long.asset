@@ -16,6 +16,12 @@ MonoBehaviour:
   displayName: Stable
   color: {r: 1, g: 1, b: 1, a: 1}
   icon: {fileID: 21300000, guid: e9afa729cf55084409d9d322b5357910, type: 3}
+  neutralBuildingPrefab: {fileID: 0}
+  playerOneBuildingPrefab: {fileID: 974137530337538372, guid: bc876308f2f102f4f980053ff7348261, type: 3}
+  playerTwoBuildingPrefab: {fileID: 974137530337538372, guid: 74269a3163e497e4e971d01b0c83716c, type: 3}
+  buildingLocalOffset: {x: 0, y: 0, z: 0}
+  buildingLocalRotation: {x: 0, y: 0, z: 0}
+  buildingLocalScale: {x: 1, y: 1, z: 1}
   cells:
   - {x: 0, y: 0}
   - {x: 1, y: 0}
